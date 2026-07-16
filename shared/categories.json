@@ -1,0 +1,15 @@
+[
+  {"id":"poor_lighting","polarity":"hazard","label":"Poor lighting","sigmaMeters":80,"halfLifeHours":2160,"ttlHours":4320},
+  {"id":"damaged_road","polarity":"hazard","label":"Damaged road or pavement","sigmaMeters":60,"halfLifeHours":1440,"ttlHours":2880},
+  {"id":"accident_prone","polarity":"hazard","label":"Accident-prone area","sigmaMeters":100,"halfLifeHours":2160,"ttlHours":4320},
+  {"id":"suspicious_activity","polarity":"hazard","label":"Suspicious activity","sigmaMeters":120,"halfLifeHours":72,"ttlHours":168},
+  {"id":"theft","polarity":"hazard","label":"Theft (pencurian)","sigmaMeters":150,"halfLifeHours":336,"ttlHours":1440},
+  {"id":"robbery","polarity":"hazard","label":"Robbery / mugging (begal)","sigmaMeters":180,"halfLifeHours":336,"ttlHours":1440},
+  {"id":"harassment","polarity":"hazard","label":"Harassment","sigmaMeters":150,"halfLifeHours":336,"ttlHours":1440},
+  {"id":"flooding_obstruction","polarity":"hazard","label":"Flooding or obstruction","sigmaMeters":60,"halfLifeHours":6,"ttlHours":24},
+  {"id":"other_hazard","polarity":"hazard","label":"Other hazard","sigmaMeters":100,"halfLifeHours":168,"ttlHours":336},
+  {"id":"cctv","polarity":"protective","label":"CCTV camera","sigmaMeters":60,"halfLifeHours":8760,"ttlHours":17520},
+  {"id":"police_station","polarity":"protective","label":"Police station","sigmaMeters":250,"halfLifeHours":8760,"ttlHours":17520},
+  {"id":"security_post","polarity":"protective","label":"Security post","sigmaMeters":120,"halfLifeHours":8760,"ttlHours":17520},
+  {"id":"safety_device","polarity":"protective","label":"Safety device (alarm, emergency button)","sigmaMeters":80,"halfLifeHours":8760,"ttlHours":17520}
+]
