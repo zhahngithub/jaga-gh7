@@ -7,6 +7,8 @@ import '../widgets/destination_search_bar.dart';
 import '../../application/location_service.dart';
 import '../../application/geocoding_service.dart';
 import '../widgets/welcome_dialog.dart';
+// import routing service
+import '../../../routing/application/routing_service.dart';
 
 class MainSafetyMapScreen extends ConsumerStatefulWidget {
   const MainSafetyMapScreen({super.key});
@@ -23,7 +25,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
   void initState() {
     super.initState();
     
-    // Wait for the UI to finish building, then show the pop-up
+    // tunggu ui selesai build, baru panggil pop up
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showWelcomePopup();
     });
@@ -32,9 +34,8 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
   void _showWelcomePopup() {
     showDialog(
       context: context,
-      barrierDismissible: false, // Prevents closing by tapping outside the box
+      barrierDismissible: false,
       builder: (BuildContext context) {
-        // Render your reusable component here
         return const WelcomeDialog(username: "Ricky"); 
       },
     );
@@ -50,31 +51,19 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     );
   }
 
-  void _dismissSearch() {
-    FocusScope.of(context).unfocus();
-    ref.read(searchResultsVisibleProvider.notifier).hide();
-  }
-
   @override
   Widget build(BuildContext context) {
-    // pake provider
+    // pake provider buat gps
     final locationAsyncValue = ref.watch(liveLocationProvider);
 
     return Scaffold(
-      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           FlutterMap(
             mapController: _mapController,
-            options: MapOptions(
+            options: const MapOptions(
               initialCenter: LatLng(-6.1783, 106.6319), // fallback
               initialZoom: 13.0,
-              onTap: (_, _) => _dismissSearch(),
-              onPositionChanged: (_, hasGesture) {
-                if (hasGesture) {
-                  _dismissSearch();
-                }
-              },
             ),
             children: [
               TileLayer(
@@ -82,10 +71,23 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                 userAgentPackageName: 'com.yourname.jaga',
               ),
               
+              // layer buat gambar garis rute
+              PolylineLayer(
+                polylines: [
+                  // cuman draw kalau ga kosong, soalnya error dia kalau ga gini
+                  if (ref.watch(routeProvider).isNotEmpty)
+                    Polyline(
+                      points: ref.watch(routeProvider),
+                      strokeWidth: 5.0,
+                      color: Colors.blueAccent,
+                    ),
+                ],
+              ),
+
               // kalau ada data location, draw marker
               locationAsyncValue.when(
                 data: (currentPosition) {
-                  // Move camera on first load
+                  // pindah kamera pas pertama load
                   if (!_hasInitialCameraMoved) {
                     _hasInitialCameraMoved = true;
                     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -93,12 +95,12 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                     });
                   }
 
-                  // 1. Check if the user has searched for a destination
+                  // 1. cek kalau user udah cari tujuan
                   final destinationPosition = ref.watch(destinationProvider);
                   
-                  // 2. Build the list of markers
+                  // 2. build list marker
                   List<Marker> mapMarkers = [
-                    // The Blue User Marker
+                    // marker biru buat user
                     Marker(
                       point: currentPosition,
                       width: 50.0,
@@ -111,7 +113,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                     ),
                   ];
 
-                  // 3. If a destination exists, add a Red Pin to the map!
+                  // 3. kalau ada tujuan, tambahin pin merah ke map
                   if (destinationPosition != null) {
                     mapMarkers.add(
                       Marker(
@@ -126,7 +128,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                       ),
                     );
                     
-                    // Optional: Automatically move the camera to see the new pin
+                    // auto pindah kamera ke pin baru
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       _mapController.move(destinationPosition, 15.0);
                     });
@@ -142,25 +144,57 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
 
           SafeArea(
             child: Padding(
-              padding: EdgeInsets.all(16.0),
+              padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  DestinationSearchBar(),
-                  // OTHER ADDITIONS
-                  const SizedBox(height: 16), // Space before the button
+                  const DestinationSearchBar(),
+                  const SizedBox(height: 16),
                   
-                  // 3. --- DEBUG BUTTON ---
+                  // tombol debug buat pop up danger
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange, // Orange to mark it as a debug tool
+                      backgroundColor: Colors.orange,
                       foregroundColor: Colors.white,
                     ),
                     onPressed: () {
-                      // Pass a dummy distance to test the UI
+                      // pass dummy distance buat tes ui
                       _showSafetyCheckPopup(150); 
                     },
                     icon: const Icon(Icons.bug_report),
                     label: const Text("DEBUG: Test Danger Popup"),
+                  ),
+
+                  const SizedBox(height: 12), // kasi jarak buat tombol rute
+
+                  // tombol debug buat tes rute
+                  ElevatedButton(
+                    onPressed: () async {
+                      // ambil gps sekarang sama lokasi tujuan dari riverpod
+                      final currentPosition = ref.read(liveLocationProvider).value;
+                      final destinationPosition = ref.read(destinationProvider);
+
+                      // pastikan dua-duanya ga kosong
+                      if (currentPosition != null && destinationPosition != null) {
+                        // hit api ors
+                        final routePoints = await RoutingService.getRoute(
+                          currentPosition,
+                          destinationPosition
+                        );
+
+                        // update state biar polyline ke-gambar
+                        ref.read(routeProvider.notifier).updateRoute(routePoints);
+                      } else {
+                        // error handling kalau belum pilih tujuan atau gps belum dapet
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Wait for GPS and select a destination first')),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.black87,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('DEBUG route test'),
                   ),
                 ],
               ),
@@ -170,7 +204,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          // fokus ke marker
+          // fokus ke marker user
           final currentPosition = ref.read(liveLocationProvider).value;
           if (currentPosition != null) {
             _mapController.move(currentPosition, 15.0);
