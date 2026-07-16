@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,18 +41,28 @@ class ReportDetailBottomSheet extends ConsumerWidget {
   Future<void> _vote(
     BuildContext context,
     WidgetRef ref, {
-    required bool isUpvote,
+    required int voteValue,
   }) async {
+    debugPrint(
+      '[ReportDetailBottomSheet] Vote button pressed '
+      'reportId=${initialReport.id} requestedValue=$voteValue',
+    );
     await ref
         .read(reportVoteControllerProvider.notifier)
-        .vote(reportId: initialReport.id, isUpvote: isUpvote);
+        .vote(reportId: initialReport.id, voteValue: voteValue);
 
     if (!context.mounted) return;
-    final result = ref.read(reportVoteControllerProvider);
+    final result =
+        ref.read(reportVoteControllerProvider)[initialReport.id] ??
+        const AsyncData<void>(null);
     if (result.hasError) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result.error.toString())));
+      final message =
+          result.error is ReportVoteAuthenticationRequiredException
+          ? 'Silakan masuk untuk memberikan suara.'
+          : 'Gagal menyimpan suara. Silakan coba lagi.';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(message)),
+      );
     }
   }
 
@@ -60,8 +71,34 @@ class ReportDetailBottomSheet extends ConsumerWidget {
     final reportAsync = ref.watch(reportDetailProvider(initialReport.id));
     final report = reportAsync.value ?? initialReport;
     final currentUser = ref.watch(firebaseAuthProvider).currentUser;
-    final voteState = ref.watch(reportVoteControllerProvider);
-    final canVote = currentUser != null && currentUser.uid != report.creatorId;
+    final currentVoteState = ref.watch(
+      currentReportVoteProvider(initialReport.id),
+    );
+    final voteTotalsState = ref.watch(
+      reportVoteTotalsProvider(initialReport.id),
+    );
+    final selectedVote = currentVoteState.value;
+    final voteTotals = voteTotalsState.value;
+    final upvoteTotal = voteTotals?.upvotes.toString() ?? '…';
+    final downvoteTotal = voteTotals?.downvotes.toString() ?? '…';
+    final voteState =
+        ref.watch(reportVoteControllerProvider)[initialReport.id] ??
+        const AsyncData<void>(null);
+    final isSubmittingVote = voteState.isLoading || currentVoteState.isLoading;
+    final isUpvoted = selectedVote == 1;
+    final isDownvoted = selectedVote == -1;
+    final canVote = currentUser?.uid != report.creatorId;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    ButtonStyle voteButtonStyle(bool isSelected) => OutlinedButton.styleFrom(
+      backgroundColor: isSelected ? colorScheme.primaryContainer : null,
+      foregroundColor: isSelected
+          ? colorScheme.onPrimaryContainer
+          : colorScheme.primary,
+      side: BorderSide(
+        color: isSelected ? colorScheme.primary : colorScheme.outline,
+      ),
+    );
 
     return SafeArea(
       child: Padding(
@@ -84,8 +121,8 @@ class ReportDetailBottomSheet extends ConsumerWidget {
             const SizedBox(height: 20),
             Row(
               children: [
-                Expanded(child: Text('Upvotes: ${report.upvoteCount}')),
-                Expanded(child: Text('Downvotes: ${report.downvoteCount}')),
+                Expanded(child: Text('Upvotes: $upvoteTotal')),
+                Expanded(child: Text('Downvotes: $downvoteTotal')),
               ],
             ),
             if (canVote) ...[
@@ -93,10 +130,11 @@ class ReportDetailBottomSheet extends ConsumerWidget {
               Row(
                 children: [
                   Expanded(
-                    child: FilledButton.icon(
-                      onPressed: voteState.isLoading
+                    child: OutlinedButton.icon(
+                      style: voteButtonStyle(isUpvoted),
+                      onPressed: isSubmittingVote
                           ? null
-                          : () => _vote(context, ref, isUpvote: true),
+                          : () => _vote(context, ref, voteValue: 1),
                       icon: const Icon(Icons.thumb_up),
                       label: const Text('Upvote'),
                     ),
@@ -104,9 +142,10 @@ class ReportDetailBottomSheet extends ConsumerWidget {
                   const SizedBox(width: 12),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: voteState.isLoading
+                      style: voteButtonStyle(isDownvoted),
+                      onPressed: isSubmittingVote
                           ? null
-                          : () => _vote(context, ref, isUpvote: false),
+                          : () => _vote(context, ref, voteValue: -1),
                       icon: const Icon(Icons.thumb_down),
                       label: const Text('Downvote'),
                     ),

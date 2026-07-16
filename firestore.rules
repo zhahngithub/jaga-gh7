@@ -111,6 +111,66 @@ service cloud.firestore {
       }
     }
 
+    match /reports/{reportId} {
+      allow read: if request.auth != null;
+
+      allow create: if request.auth != null
+        && request.resource.data.creatorId == request.auth.uid;
+
+      allow delete: if request.auth != null
+        && resource.data.creatorId == request.auth.uid;
+
+      allow update: if request.auth != null
+        && resource.data.creatorId == request.auth.uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'status',
+          'upvoteCount',
+          'downvoteCount',
+          'confidenceScore',
+          'journeysHelpedCount',
+          'createdAt',
+          'expiresAt',
+          'lastValidatedAt'
+        ]);
+
+      match /votes/{userId} {
+        allow read: if request.auth != null;
+
+        allow create: if request.auth != null
+          && request.auth.uid == userId
+          && exists(/databases/$(database)/documents/reports/$(reportId))
+          && request.resource.data.keys().hasAll([
+            'value',
+            'createdAt'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'value',
+            'createdAt'
+          ])
+          && request.resource.data.value in [1, -1]
+          && request.resource.data.createdAt == request.time;
+
+        allow update: if request.auth != null
+          && request.auth.uid == userId
+          && request.resource.data.keys().hasAll([
+            'value',
+            'createdAt'
+          ])
+          && request.resource.data.keys().hasOnly([
+            'value',
+            'createdAt'
+          ])
+          && request.resource.data.value in [1, -1]
+          && request.resource.data.createdAt == resource.data.createdAt
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            'value'
+          ]);
+
+        allow delete: if request.auth != null
+          && request.auth.uid == userId;
+      }
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

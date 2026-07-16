@@ -1,7 +1,21 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:dart_geohash/dart_geohash.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/report.dart';
+
+class ReportVoteAuthenticationException implements Exception {
+  const ReportVoteAuthenticationException();
+}
+
+class ReportVoteTotals {
+  const ReportVoteTotals({required this.upvotes, required this.downvotes});
+
+  final int upvotes;
+  final int downvotes;
+}
 
 class ReportRepository {
   ReportRepository(this._firestore);
@@ -48,49 +62,108 @@ class ReportRepository {
     });
   }
 
-  Future<void> castVote({
+  Stream<int?> watchCurrentVote({
     required String reportId,
     required String userId,
-    required bool isUpvote,
+  }) {
+    return _reports
+        .doc(reportId)
+        .collection('votes')
+        .doc(userId)
+        .snapshots()
+        .map((snapshot) {
+          if (!snapshot.exists) return null;
+          final value = (snapshot.data()?['value'] as num?)?.toInt();
+          return value == 1 || value == -1 ? value : null;
+        });
+  }
+
+  Stream<ReportVoteTotals> watchVoteTotals(String reportId) {
+    return _reports
+        .doc(reportId)
+        .collection('votes')
+        .snapshots()
+        .map((snapshot) {
+          var upvotes = 0;
+          var downvotes = 0;
+
+          for (final document in snapshot.docs) {
+            final value = (document.data()['value'] as num?)?.toInt();
+            if (value == 1) {
+              upvotes++;
+            } else if (value == -1) {
+              downvotes++;
+            }
+          }
+
+          return ReportVoteTotals(
+            upvotes: upvotes,
+            downvotes: downvotes,
+          );
+        });
+  }
+
+  Future<void> castVote({
+    required String reportId,
+    required int voteValue,
   }) async {
-    final reportReference = _reports.doc(reportId);
-    final voteReference = reportReference.collection('votes').doc(userId);
+    if (voteValue != 1 && voteValue != -1) {
+      throw ArgumentError.value(voteValue, 'voteValue', 'Must be 1 or -1');
+    }
 
-    await _firestore.runTransaction((transaction) async {
-      final reportSnapshot = await transaction.get(reportReference);
-      final voteSnapshot = await transaction.get(voteReference);
-      final reportData = reportSnapshot.data();
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw const ReportVoteAuthenticationException();
+    }
 
-      if (!reportSnapshot.exists || reportData == null) {
-        throw StateError('This report no longer exists.');
+    final userId = user.uid;
+    final voteReference = _reports
+        .doc(reportId)
+        .collection('votes')
+        .doc(userId);
+
+    try {
+      debugPrint(
+        '[ReportRepository] Resolving vote operation '
+        'path=${voteReference.path} requestedValue=$voteValue',
+      );
+      final voteSnapshot = await voteReference.get();
+      final previousVote = (voteSnapshot.data()?['value'] as num?)?.toInt();
+
+      if (previousVote == voteValue) {
+        debugPrint(
+          '[ReportRepository] Writing vote path=${voteReference.path} '
+          'operation=no-op requestedValue=$voteValue',
+        );
+        debugPrint('[ReportRepository] Vote write succeeded');
+        return;
       }
-      if (reportData['creatorId'] == userId) {
-        throw StateError('You cannot vote on your own report.');
+
+      if (voteSnapshot.exists) {
+        debugPrint(
+          '[ReportRepository] Writing vote path=${voteReference.path} '
+          'operation=update requestedValue=$voteValue',
+        );
+        await voteReference.update(<String, Object>{'value': voteValue});
+      } else {
+        debugPrint(
+          '[ReportRepository] Writing vote path=${voteReference.path} '
+          'operation=create requestedValue=$voteValue',
+        );
+        await voteReference.set(<String, Object>{
+          'value': voteValue,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
       }
 
-      final previousVote =
-          (voteSnapshot.data()?['value'] as num?)?.toInt() ?? 0;
-      final nextVote = isUpvote ? 1 : -1;
-      if (previousVote == nextVote) return;
-
-      final currentUpvotes = (reportData['upvoteCount'] as num?)?.toInt() ?? 0;
-      final currentDownvotes =
-          (reportData['downvoteCount'] as num?)?.toInt() ?? 0;
-      final upvoteDelta = (nextVote == 1 ? 1 : 0) - (previousVote == 1 ? 1 : 0);
-      final downvoteDelta =
-          (nextVote == -1 ? 1 : 0) - (previousVote == -1 ? 1 : 0);
-
-      transaction.update(reportReference, <String, Object>{
-        'upvoteCount': (currentUpvotes + upvoteDelta).clamp(0, 1 << 31),
-        'downvoteCount': (currentDownvotes + downvoteDelta).clamp(0, 1 << 31),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-      transaction.set(voteReference, <String, Object>{
-        'userId': userId,
-        'value': nextVote,
-        'updatedAt': FieldValue.serverTimestamp(),
-        if (!voteSnapshot.exists) 'createdAt': FieldValue.serverTimestamp(),
-      }, SetOptions(merge: true));
-    });
+      debugPrint('[ReportRepository] Vote write succeeded');
+    } on FirebaseException catch (error) {
+      debugPrint(
+        '[ReportRepository] Vote write failed firebaseCode=${error.code} '
+        'message=${error.message} reportId=$reportId uid=$userId '
+        'requestedValue=$voteValue',
+      );
+      rethrow;
+    }
   }
 }

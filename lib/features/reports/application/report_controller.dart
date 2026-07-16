@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -58,6 +60,23 @@ final reportDetailProvider = StreamProvider.family<Report?, String>((
 ) {
   return ref.watch(reportRepositoryProvider).watchReport(reportId);
 });
+
+final currentReportVoteProvider = StreamProvider.family<int?, String>((
+  ref,
+  reportId,
+) {
+  final user = ref.watch(firebaseAuthProvider).currentUser;
+  if (user == null) return Stream<int?>.value(null);
+
+  return ref
+      .watch(reportRepositoryProvider)
+      .watchCurrentVote(reportId: reportId, userId: user.uid);
+});
+
+final reportVoteTotalsProvider =
+    StreamProvider.family<ReportVoteTotals, String>((ref, reportId) {
+      return ref.watch(reportRepositoryProvider).watchVoteTotals(reportId);
+    });
 
 final reportControllerProvider =
     AsyncNotifierProvider<ReportController, Report?>(ReportController.new);
@@ -123,25 +142,79 @@ class ReportController extends AsyncNotifier<Report?> {
 }
 
 final reportVoteControllerProvider =
-    AsyncNotifierProvider<ReportVoteController, void>(ReportVoteController.new);
+    NotifierProvider<
+      ReportVoteController,
+      Map<String, AsyncValue<void>>
+    >(ReportVoteController.new);
 
-class ReportVoteController extends AsyncNotifier<void> {
+class ReportVoteAuthenticationRequiredException implements Exception {
+  const ReportVoteAuthenticationRequiredException();
+}
+
+class ReportVoteController
+    extends Notifier<Map<String, AsyncValue<void>>> {
   @override
-  FutureOr<void> build() {}
+  Map<String, AsyncValue<void>> build() =>
+      const <String, AsyncValue<void>>{};
 
-  Future<void> vote({required String reportId, required bool isUpvote}) async {
-    if (state.isLoading) return;
+  Future<void> vote({required String reportId, required int voteValue}) async {
+    final user = ref.read(firebaseAuthProvider).currentUser;
+    final currentVote = ref.read(currentReportVoteProvider(reportId)).value;
+    debugPrint(
+      '[ReportVoteController] Vote controller invoked reportId=$reportId '
+      'uid=${user?.uid ?? 'unauthenticated'} requestedValue=$voteValue '
+      'currentVote=$currentVote',
+    );
 
-    state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
-      final user = ref.read(firebaseAuthProvider).currentUser;
-      if (user == null) {
-        throw StateError('You must be signed in to vote.');
-      }
+    final currentRequest = state[reportId];
+    if (currentRequest?.isLoading ?? false) return;
 
+    if (user == null) {
+      _setRequestState(
+        reportId,
+        AsyncError<void>(
+          const ReportVoteAuthenticationRequiredException(),
+          StackTrace.current,
+        ),
+      );
+      return;
+    }
+
+    _setRequestState(reportId, const AsyncLoading<void>());
+    try {
       await ref
           .read(reportRepositoryProvider)
-          .castVote(reportId: reportId, userId: user.uid, isUpvote: isUpvote);
-    });
+          .castVote(reportId: reportId, voteValue: voteValue);
+      _setRequestState(reportId, const AsyncData<void>(null));
+    } on ReportVoteAuthenticationException catch (_, stackTrace) {
+      _setRequestState(
+        reportId,
+        AsyncError<void>(
+          const ReportVoteAuthenticationRequiredException(),
+          stackTrace,
+        ),
+      );
+    } on FirebaseException catch (error, stackTrace) {
+      debugPrint(
+        '[ReportVoteController] Vote write failed reportId=$reportId '
+        'uid=${user.uid} requestedValue=$voteValue '
+        'firebaseCode=${error.code}',
+      );
+      _setRequestState(reportId, AsyncError<void>(error, stackTrace));
+    } catch (error, stackTrace) {
+      debugPrint(
+        '[ReportVoteController] Vote write failed reportId=$reportId '
+        'uid=${user.uid} requestedValue=$voteValue '
+        'errorType=${error.runtimeType}',
+      );
+      _setRequestState(reportId, AsyncError<void>(error, stackTrace));
+    }
+  }
+
+  void _setRequestState(String reportId, AsyncValue<void> requestState) {
+    state = <String, AsyncValue<void>>{
+      ...state,
+      reportId: requestState,
+    };
   }
 }
