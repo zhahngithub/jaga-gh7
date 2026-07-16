@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jaga/core/theme/app_colors.dart';
+import 'package:jaga/features/map/application/emergency_service.dart';
 
-class SafetyCheckDialog extends StatelessWidget {
+class SafetyCheckDialog extends ConsumerWidget {
   final int distanceInMeters;
   
 
@@ -11,7 +13,7 @@ class SafetyCheckDialog extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
 
     return Dialog(
       shape: RoundedRectangleBorder(
@@ -22,12 +24,11 @@ class SafetyCheckDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Warning Icon using the system's error color (defaults to red)
             Icon(Icons.warning_amber_rounded, size: 80, color: Colors.red), 
             const SizedBox(height: 16),
             
             const Text(
-              "Apakah kamu aman?",
+              "Apakah kamu dalam bahaya?",
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -48,53 +49,49 @@ class SafetyCheckDialog extends StatelessWidget {
             ),
             const SizedBox(height: 32),
 
-            // Emergency Button (Red / Solid)
+            // Emergency Button
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 style: OutlinedButton.styleFrom(
-                  backgroundColor: Colors.red, // Danger color
-                  foregroundColor: Colors.white, // Text color
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white, 
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 onPressed: () {
-                  Navigator.of(context).pop();
-                  // TODO: Trigger emergency protocol (e.g., call API, notify contacts)
-                  print("Emergency triggered!");
+                  ref.read(emergencyProvider.notifier).triggerEmergencyNow();
                 },
                 child: const Text(
-                  "Tidak, aku dalam bahaya!", 
+                  "Iya, aku dalam bahaya!", 
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
-            const SizedBox(height: 12), // Space between buttons
+            const SizedBox(height: 12),
 
-            // Safe Button (Outlined / Secondary)
+            // Safe Button
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: BorderSide(color: Colors.grey), // Blue border
+                  side: BorderSide(color: Colors.grey),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 onPressed: () {
-                  Navigator.of(context).pop();
-                  // TODO: Dismiss alert and optionally recalculate route
-                  print("User is safe.");
+                  ref.read(emergencyProvider.notifier).markAsSafe();
                 },
                 child: Text(
-                  "Iya, aku aman.", 
+                  "Tidak, aku aman.", 
                   style: TextStyle(
                     fontSize: 16, 
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey, // Blue text
+                    color: Colors.grey, 
                   ),
                 ),
               ),
