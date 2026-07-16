@@ -14,7 +14,8 @@ class MainSafetyMapScreen extends ConsumerStatefulWidget {
   const MainSafetyMapScreen({super.key});
 
   @override
-  ConsumerState<MainSafetyMapScreen> createState() => _MainSafetyMapScreenState();
+  ConsumerState<MainSafetyMapScreen> createState() =>
+      _MainSafetyMapScreenState();
 }
 
 class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
@@ -24,7 +25,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
   @override
   void initState() {
     super.initState();
-    
+
     // tunggu ui selesai build, baru panggil pop up
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showWelcomePopup();
@@ -36,7 +37,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return const WelcomeDialog(username: "Ricky"); 
+        return const WelcomeDialog(username: "Ricky");
       },
     );
   }
@@ -44,7 +45,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
   void _showSafetyCheckPopup(int distance) {
     showDialog(
       context: context,
-      barrierDismissible: false, 
+      barrierDismissible: false,
       builder: (BuildContext context) {
         return SafetyCheckDialog(distanceInMeters: distance);
       },
@@ -70,7 +71,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.yourname.jaga',
               ),
-              
+
               // layer buat gambar garis rute
               PolylineLayer(
                 polylines: [
@@ -97,7 +98,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
 
                   // 1. cek kalau user udah cari tujuan
                   final destinationPosition = ref.watch(destinationProvider);
-                  
+
                   // 2. build list marker
                   List<Marker> mapMarkers = [
                     // marker biru buat user
@@ -127,13 +128,13 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                         ),
                       ),
                     );
-                    
+
                     // auto pindah kamera ke pin baru
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       _mapController.move(destinationPosition, 15.0);
                     });
                   }
-                  
+
                   return MarkerLayer(markers: mapMarkers);
                 },
                 loading: () => const SizedBox.shrink(),
@@ -149,7 +150,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                 children: [
                   const DestinationSearchBar(),
                   const SizedBox(height: 16),
-                  
+
                   // tombol debug buat pop up danger
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
@@ -158,35 +159,43 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                     ),
                     onPressed: () {
                       // pass dummy distance buat tes ui
-                      _showSafetyCheckPopup(150); 
+                      _showSafetyCheckPopup(150);
                     },
                     icon: const Icon(Icons.bug_report),
                     label: const Text("DEBUG: Test Danger Popup"),
                   ),
 
                   const SizedBox(height: 12), // kasi jarak buat tombol rute
-
                   // tombol debug buat tes rute
                   ElevatedButton(
                     onPressed: () async {
                       // ambil gps sekarang sama lokasi tujuan dari riverpod
-                      final currentPosition = ref.read(liveLocationProvider).value;
+                      final currentPosition = ref
+                          .read(liveLocationProvider)
+                          .value;
                       final destinationPosition = ref.read(destinationProvider);
 
                       // pastikan dua-duanya ga kosong
-                      if (currentPosition != null && destinationPosition != null) {
+                      if (currentPosition != null &&
+                          destinationPosition != null) {
                         // hit api ors
                         final routePoints = await RoutingService.getRoute(
                           currentPosition,
-                          destinationPosition
+                          destinationPosition,
                         );
 
                         // update state biar polyline ke-gambar
-                        ref.read(routeProvider.notifier).updateRoute(routePoints);
+                        ref
+                            .read(routeProvider.notifier)
+                            .updateRoute(routePoints);
                       } else {
                         // error handling kalau belum pilih tujuan atau gps belum dapet
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Wait for GPS and select a destination first')),
+                          const SnackBar(
+                            content: Text(
+                              'Wait for GPS and select a destination first',
+                            ),
+                          ),
                         );
                       }
                     },
@@ -227,7 +236,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
 // class _MainSafetyMapScreenState extends State<MainSafetyMapScreen> {
 //   // buat atur camera gerak
 //   final MapController _mapController = MapController();
-  
+
 //   // live location
 //   LatLng? _currentPosition;
 
@@ -265,10 +274,10 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
 //         return; // permission denied
 //       }
 //     }
-    
+
 //     if (permission == LocationPermission.deniedForever) {
 //       return; // Permissions are permanently denied
-//     } 
+//     }
 
 //     // initial fetch location
 //     Position position = await Geolocator.getCurrentPosition(
@@ -300,13 +309,13 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
 //       locationSettings: locationSettings,
 //     ).listen((Position position) {
 //       if (!mounted) return;
-      
+
 //       setState(() {
 //         _currentPosition = LatLng(position.latitude, position.longitude);
 //       });
-      
-//       // Note: We update the state to move the blue marker, but we DO NOT 
-//       // automatically move the camera here. Otherwise, the user could never 
+
+//       // Note: We update the state to move the blue marker, but we DO NOT
+//       // automatically move the camera here. Otherwise, the user could never
 //       // pan around the map because the camera would constantly snap back to them!
 //     });
 //   }
