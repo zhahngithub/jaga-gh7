@@ -3,10 +3,20 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+// model buat nampung nama sama koordinat
+class LocationResult {
+  final String displayName;
+  final LatLng coordinates;
+
+  LocationResult({required this.displayName, required this.coordinates});
+}
+
+// state riverpod
 class DestinationNotifier extends Notifier<LatLng?> {
   @override
   LatLng? build() => null;
 
+  // fungsi update state
   void updateLocation(LatLng? newLocation) {
     state = newLocation;
   }
@@ -17,14 +27,14 @@ final destinationProvider = NotifierProvider<DestinationNotifier, LatLng?>(
 );
 
 class GeocodingService {
-  // api key akun gw, males env
+  // api key akun gw
   static const String apiKey = 'pk.53befdbc81da2eae90473cb988cc9e57';
 
-  // api call
-  static Future<LatLng?> searchDestination(String query) async {
-    // specific manggil indonesia
+  // api call buat list
+  static Future<List<LocationResult>> searchDestinations(String query) async {
+    // cari max 5 result di indo
     final url = Uri.parse(
-        'https://us1.locationiq.com/v1/search?key=$apiKey&q=$query&format=json&countrycodes=id&limit=1');
+        'https://us1.locationiq.com/v1/search?key=$apiKey&q=$query&format=json&countrycodes=id&limit=5');
 
     try {
       final response = await http.get(url);
@@ -32,17 +42,21 @@ class GeocodingService {
       if (response.statusCode == 200) {
         final List<dynamic> data = json.decode(response.body);
         
-        if (data.isNotEmpty) {
-          // parse ke decimal
-          final lat = double.parse(data[0]['lat']);
-          final lon = double.parse(data[0]['lon']);
-          return LatLng(lat, lon);
-        }
+        // map data ke list
+        return data.map((item) {
+          final lat = double.parse(item['lat']);
+          final lon = double.parse(item['lon']);
+          
+          return LocationResult(
+            displayName: item['display_name'],
+            coordinates: LatLng(lat, lon),
+          );
+        }).toList();
       }
     } catch (e) {
       // kalau fail
-      return null; 
+      return []; 
     }
-    return null;
+    return [];
   }
 }
