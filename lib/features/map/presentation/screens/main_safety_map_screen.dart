@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:jaga/features/map/application/emergency_service.dart';
 import 'package:jaga/features/map/presentation/widgets/emergency_notified_dialog.dart';
+import 'package:jaga/features/map/presentation/widgets/help_request_dialog.dart';
+import 'package:jaga/features/map/presentation/widgets/nearby_notified_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/safety_check_dialog.dart';
 import 'package:latlong2/latlong.dart';
 import '../widgets/destination_search_bar.dart';
@@ -58,6 +60,25 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => const EmergencyNotifiedDialog(), 
+    );
+  }
+
+  // belum di testing
+  void _showNearbyNotifiedPopup() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const NearbyNotifiedDialog(), 
+    );
+  }
+
+  void _showHelpRequestPopup() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+
+      // PLACEHOLDER, nanti bisa disesuaikan kondisi lokasi pengguna
+      builder: (context) => const HelpRequestDialog(distanceInMeters: 10), 
     );
   }
 

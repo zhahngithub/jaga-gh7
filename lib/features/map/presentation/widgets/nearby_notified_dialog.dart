@@ -20,7 +20,7 @@ class NearbyNotifiedDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.notifications_active_rounded, size: 80, color: Colors.orange), 
+            const Icon(Icons.notifications_active_rounded, size: 80, color: AppColors.primary), 
             const SizedBox(height: 16),
             
             const Text(

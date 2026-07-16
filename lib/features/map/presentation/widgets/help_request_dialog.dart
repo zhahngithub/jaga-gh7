@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jaga/core/theme/app_colors.dart';
-import 'package:jaga/features/map/application/emergency_service.dart';
 
-class EmergencyNotifiedDialog extends ConsumerWidget {
-  const EmergencyNotifiedDialog({super.key});
+class HelpRequestDialog extends StatelessWidget {
+  final int distanceInMeters;
+
+  const HelpRequestDialog({
+    super.key,
+    required this.distanceInMeters,
+  });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16.0),
@@ -17,12 +20,11 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-
-            const Icon(Icons.phone_in_talk_rounded, size: 80, color: AppColors.primary), 
+            const Icon(Icons.sos_rounded, size: 80, color: AppColors.primary), 
             const SizedBox(height: 16),
             
             const Text(
-              "Mengabari kontak darurat!",
+              "Seseorang membutuhkan bantuanmu!", 
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -32,9 +34,9 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             
-            const Text(
-              "Kami telah mengirim notifikasi dan live location kamu ke kontak darurat.",
-              style: TextStyle(
+            Text(
+              "Seorang pengguna $distanceInMeters meter dari kamu sedang dalam bahaya.",
+              style: const TextStyle(
                 fontSize: 16, 
                 color: Colors.grey,
                 height: 1.2,
@@ -43,7 +45,7 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
             ),
             const SizedBox(height: 32),
 
-            // Acknowledge Button
+            // TOOD: Can also show location once location is implemented
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -57,37 +59,33 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
                 ),
                 onPressed: () {
                   Navigator.of(context).pop();
+                  // TODO: Give the user in danger location
+                  print("Opening victim's location...");
                 },
                 child: const Text(
-                  "Mengerti", 
+                  "Lihat Lokasi",
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
             const SizedBox(height: 12),
-            // Cancel Button
+
+            // Dismiss Button
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: BorderSide(color: Colors.grey),
+                  side: const BorderSide(color: Colors.grey),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
                 onPressed: () {
-                  ref.read(emergencyProvider.notifier).markAsSafe();
                   Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text("Status darurat dibatalkan.", style: TextStyle(fontWeight: FontWeight.bold),),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
                 },
-                child: Text(
-                  "Batalkan, aku aman.", 
+                child: const Text(
+                  "Tutup",
                   style: TextStyle(
                     fontSize: 16, 
                     fontWeight: FontWeight.bold,
