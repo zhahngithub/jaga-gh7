@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/geocoding_service.dart';
@@ -8,12 +10,46 @@ final searchResultsVisibleProvider =
 );
 
 class SearchResultsVisibleNotifier extends Notifier<bool> {
+  Timer? _debounceTimer;
+  String? _lastSearchedQuery;
+
   @override
-  bool build() => false;
+  bool build() {
+    ref.onDispose(() => _debounceTimer?.cancel());
+    return false;
+  }
+
+  void debounceSearch(String query, void Function(String) onSearch) {
+    _debounceTimer?.cancel();
+
+    final normalizedQuery = query.trim();
+    if (normalizedQuery.isEmpty) return;
+
+    _debounceTimer = Timer(const Duration(milliseconds: 800), () {
+      onSearch(normalizedQuery);
+    });
+  }
+
+  bool shouldSearch(String query) {
+    if (query.isEmpty || query == _lastSearchedQuery) return false;
+
+    _lastSearchedQuery = query;
+    return true;
+  }
+
+  void cancelPendingSearch() {
+    _debounceTimer?.cancel();
+    _debounceTimer = null;
+  }
+
+  void resetLastSearchedQuery() => _lastSearchedQuery = null;
 
   void show() => state = true;
 
-  void hide() => state = false;
+  void hide() {
+    cancelPendingSearch();
+    state = false;
+  }
 }
 
 class DestinationSearchBar extends ConsumerStatefulWidget {
@@ -32,21 +68,33 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
 
   // hit api pas enter
   Future<void> _handleSearch(String query) async {
+    if (!mounted) return;
+
+    final normalizedQuery = query.trim();
+    final searchController =
+        ref.read(searchResultsVisibleProvider.notifier);
+
     // kalau kosong reset
-    if (query.trim().isEmpty) {
+    if (normalizedQuery.isEmpty) {
       setState(() => _searchResults = []);
-      ref.read(searchResultsVisibleProvider.notifier).hide();
+      searchController.resetLastSearchedQuery();
+      searchController.hide();
       return;
     }
 
-    ref.read(searchResultsVisibleProvider.notifier).show();
+    searchController.show();
+    if (!searchController.shouldSearch(normalizedQuery)) return;
+
     setState(() {
       _isLoading = true;
       _searchResults = []; 
     });
 
     // cari top 5
-    final results = await GeocodingService.searchDestinations(query);
+    final results =
+        await GeocodingService.searchDestinations(normalizedQuery);
+
+    if (!mounted) return;
 
     setState(() {
       _searchResults = results;
@@ -117,14 +165,24 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
                     border: InputBorder.none,
                   ),
                   onChanged: (query) {
+                    final searchController =
+                        ref.read(searchResultsVisibleProvider.notifier);
+
                     if (query.trim().isEmpty) {
                       setState(() => _searchResults = []);
-                      ref
-                          .read(searchResultsVisibleProvider.notifier)
-                          .hide();
+                      searchController.resetLastSearchedQuery();
+                      searchController.hide();
+                      return;
                     }
+
+                    searchController.debounceSearch(query, _handleSearch);
                   },
-                  onSubmitted: _handleSearch,
+                  onSubmitted: (query) {
+                    ref
+                        .read(searchResultsVisibleProvider.notifier)
+                        .cancelPendingSearch();
+                    _handleSearch(query);
+                  },
                 ),
               ),
               if (_isLoading)
@@ -138,36 +196,58 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
         ),
         
         // dropdown result list
-        if (showSearchResults && _searchResults.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(top: 8.0),
-            // tetep pake container buat margin sama bates tinggi
-            constraints: const BoxConstraints(maxHeight: 250), 
-            // pake material biar listtile bisa nampilin efek klik
-            child: Material(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16.0),
-              elevation: 4.0, // ganti boxshadow pake elevation dari material
-              clipBehavior: Clip.antiAlias, // biar efek klik ga bocor keluar sudut melengkung
-              child: ListView.separated(
-                shrinkWrap: true, 
-                itemCount: _searchResults.length,
-                separatorBuilder: (context, index) => const Divider(height: 1),
-                itemBuilder: (context, index) {
-                  final result = _searchResults[index];
-                  return ListTile(
-                    leading: const Icon(Icons.location_on, color: Colors.redAccent),
-                    title: Text(
-                      result.displayName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 14),
-                    ),
-                    onTap: () => _selectLocation(result),
-                  );
-                },
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 250),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, animation) {
+            return ClipRect(
+              child: SizeTransition(
+                sizeFactor: animation,
+                axisAlignment: -1.0,
+                child: child,
               ),
-            ),
+            );
+          },
+          child: showSearchResults && _searchResults.isNotEmpty
+              ? Container(
+                  key: const ValueKey('search-results'),
+                  margin: const EdgeInsets.only(top: 8.0),
+                  // tetep pake container buat margin sama bates tinggi
+                  constraints: const BoxConstraints(maxHeight: 250),
+                  // pake material biar listtile bisa nampilin efek klik
+                  child: Material(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16.0),
+                    elevation: 4.0,
+                    clipBehavior: Clip.antiAlias,
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: _searchResults.length,
+                      separatorBuilder: (context, index) =>
+                          const Divider(height: 1),
+                      itemBuilder: (context, index) {
+                        final result = _searchResults[index];
+                        return ListTile(
+                          leading: const Icon(
+                            Icons.location_on,
+                            color: Colors.redAccent,
+                          ),
+                          title: Text(
+                            result.displayName,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontSize: 14),
+                          ),
+                          onTap: () => _selectLocation(result),
+                        );
+                      },
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(
+                  key: ValueKey('search-results-hidden'),
+                ),
           ),
       ],
     );
