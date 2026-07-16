@@ -6,6 +6,7 @@ import 'package:jaga/features/map/presentation/widgets/emergency_notified_dialog
 import 'package:jaga/features/map/presentation/widgets/help_request_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/nearby_notified_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/safety_check_dialog.dart';
+import 'package:jaga/features/reports/presentation/widgets/report_bottom_sheet.dart';
 import 'package:latlong2/latlong.dart';
 import '../widgets/destination_search_bar.dart';
 import '../../application/location_service.dart';
@@ -75,7 +76,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const NearbyNotifiedDialog(), 
+      builder: (context) => const NearbyNotifiedDialog(),
     );
   }
 
@@ -85,7 +86,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
       barrierDismissible: false,
 
       // PLACEHOLDER, nanti bisa disesuaikan kondisi lokasi pengguna
-      builder: (context) => const HelpRequestDialog(distanceInMeters: 10), 
+      builder: (context) => const HelpRequestDialog(distanceInMeters: 10),
     );
   }
 
@@ -114,9 +115,24 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
         children: [
           FlutterMap(
             mapController: _mapController,
-            options: const MapOptions(
-              initialCenter: LatLng(-6.1783, 106.6319), // fallback
+            options: MapOptions(
+              initialCenter: const LatLng(-6.1783, 106.6319), // fallback
               initialZoom: 13.0,
+              onTap: (_, location) {
+                debugPrint(
+                  'MAP REPORT TAP: '
+                  '${location.latitude}, ${location.longitude}',
+                );
+                FocusScope.of(context).unfocus();
+                ref.read(searchResultsVisibleProvider.notifier).hide();
+
+                showModalBottomSheet<void>(
+                  context: context,
+                  isScrollControlled: true,
+                  useSafeArea: true,
+                  builder: (_) => ReportBottomSheet(location: location),
+                );
+              },
             ),
             children: [
               TileLayer(
