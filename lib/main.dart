@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:jaga/core/theme/app_colors.dart';
 import 'firebase_options.dart';
 import 'features/map/presentation/screens/main_safety_map_screen.dart';
 
@@ -22,8 +23,14 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: AppColors.primary,
+          primary: AppColors.primary,
+        ),
+      ),
       title: 'Jaga',
       home: MainSafetyMapScreen(),
     );
