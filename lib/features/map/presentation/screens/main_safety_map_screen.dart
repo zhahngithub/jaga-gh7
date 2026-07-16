@@ -5,6 +5,7 @@ import 'package:jaga/features/map/presentation/widgets/safety_check_dialog.dart'
 import 'package:latlong2/latlong.dart';
 import '../widgets/destination_search_bar.dart';
 import '../../application/location_service.dart';
+import '../../application/geocoding_service.dart';
 import '../widgets/welcome_dialog.dart';
 
 class MainSafetyMapScreen extends ConsumerStatefulWidget {
@@ -72,28 +73,54 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
               // kalau ada data location, draw marker
               locationAsyncValue.when(
                 data: (currentPosition) {
-                  // pindahin kamera kalau gerak
+                  // Move camera on first load
                   if (!_hasInitialCameraMoved) {
                     _hasInitialCameraMoved = true;
                     WidgetsBinding.instance.addPostFrameCallback((_) {
                       _mapController.move(currentPosition, 15.0);
                     });
                   }
+
+                  // 1. Check if the user has searched for a destination
+                  final destinationPosition = ref.watch(destinationProvider);
                   
-                  return MarkerLayer(
-                    markers: [
+                  // 2. Build the list of markers
+                  List<Marker> mapMarkers = [
+                    // The Blue User Marker
+                    Marker(
+                      point: currentPosition,
+                      width: 50.0,
+                      height: 50.0,
+                      child: const Icon(
+                        Icons.my_location,
+                        color: Colors.blueAccent,
+                        size: 40.0,
+                      ),
+                    ),
+                  ];
+
+                  // 3. If a destination exists, add a Red Pin to the map!
+                  if (destinationPosition != null) {
+                    mapMarkers.add(
                       Marker(
-                        point: currentPosition,
+                        point: destinationPosition,
                         width: 50.0,
                         height: 50.0,
                         child: const Icon(
-                          Icons.my_location,
-                          color: Colors.blueAccent,
+                          Icons.location_on,
+                          color: Colors.red,
                           size: 40.0,
                         ),
                       ),
-                    ],
-                  );
+                    );
+                    
+                    // Optional: Automatically move the camera to see the new pin
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _mapController.move(destinationPosition, 15.0);
+                    });
+                  }
+                  
+                  return MarkerLayer(markers: mapMarkers);
                 },
                 loading: () => const SizedBox.shrink(),
                 error: (error, stack) => const SizedBox.shrink(),
