@@ -14,7 +14,14 @@ import '../widgets/welcome_dialog.dart';
 import '../../../routing/application/routing_service.dart';
 
 class MainSafetyMapScreen extends ConsumerStatefulWidget {
-  const MainSafetyMapScreen({super.key});
+  const MainSafetyMapScreen({
+    required this.displayName,
+    required this.onSignOut,
+    super.key,
+  });
+
+  final String displayName;
+  final Future<bool> Function() onSignOut;
 
   @override
   ConsumerState<MainSafetyMapScreen> createState() =>
@@ -40,7 +47,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
       context: context,
       barrierDismissible: false,
       builder: (BuildContext context) {
-        return const WelcomeDialog(username: "Ricky");
+        return WelcomeDialog(username: widget.displayName);
       },
     );
   }
@@ -59,7 +66,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const EmergencyNotifiedDialog(), 
+      builder: (context) => const EmergencyNotifiedDialog(),
     );
   }
 
@@ -90,12 +97,14 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     // Listener for showing the pop up after certain time countdown
     ref.listen<EmergencyStatus>(emergencyProvider, (previous, next) {
       if (next == EmergencyStatus.warning) {
-        _showSafetyCheckPopup(150); 
-      } else if (next == EmergencyStatus.safe && previous == EmergencyStatus.warning) {
-        Navigator.of(context).pop(); 
-      } else if (next == EmergencyStatus.notifying && previous == EmergencyStatus.warning) {
-        Navigator.of(context).pop(); 
-        
+        _showSafetyCheckPopup(150);
+      } else if (next == EmergencyStatus.safe &&
+          previous == EmergencyStatus.warning) {
+        Navigator.of(context).pop();
+      } else if (next == EmergencyStatus.notifying &&
+          previous == EmergencyStatus.warning) {
+        Navigator.of(context).pop();
+
         _showEmergencyNotifiedPopup();
       }
     });
@@ -191,7 +200,64 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  const DestinationSearchBar(),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Expanded(child: DestinationSearchBar()),
+                      const SizedBox(width: 10),
+                      Material(
+                        color: Colors.white,
+                        elevation: 3,
+                        shape: const CircleBorder(),
+                        child: PopupMenuButton<String>(
+                          tooltip: 'Akun',
+                          icon: const Icon(
+                            Icons.account_circle_outlined,
+                            color: Colors.black87,
+                          ),
+                          onSelected: (value) async {
+                            if (value != 'signOut') {
+                              return;
+                            }
+                            final succeeded = await widget.onSignOut();
+                            if (!succeeded && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Akun belum dapat dikeluarkan. Silakan coba lagi.',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            PopupMenuItem<String>(
+                              enabled: false,
+                              child: Text(
+                                widget.displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            const PopupMenuDivider(),
+                            const PopupMenuItem<String>(
+                              value: 'signOut',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.logout_rounded, color: Colors.red),
+                                  SizedBox(width: 10),
+                                  Text('Keluar'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 16),
 
                   // tombol debug buat pop up danger
@@ -207,8 +273,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                     label: const Text("DEBUG: Test Popup"),
                   ),
 
-                  const SizedBox(height: 12),
-
+                  const SizedBox(height: 12), // kasi jarak buat tombol rute
                   // tombol debug buat tes rute
                   ElevatedButton(
                     onPressed: () async {
@@ -219,19 +284,26 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                       final destinationPosition = ref.read(destinationProvider);
 
                       // pastikan dua-duanya ga kosong
-                      if (currentPosition != null && destinationPosition != null) {
+                      if (currentPosition != null &&
+                          destinationPosition != null) {
                         // hit api ors
                         final routePoints = await RoutingService.getRoute(
-                          currentPosition, 
-                          destinationPosition
+                          currentPosition,
+                          destinationPosition,
                         );
-                        
+
                         // update state biar polyline ke-gambar
-                        ref.read(routeProvider.notifier).updateRoute(routePoints);
+                        ref
+                            .read(routeProvider.notifier)
+                            .updateRoute(routePoints);
                       } else {
                         // error handling kalau belum pilih tujuan atau gps belum dapet
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Wait for GPS and select a destination first')),
+                          const SnackBar(
+                            content: Text(
+                              'Wait for GPS and select a destination first',
+                            ),
+                          ),
                         );
                       }
                     },
