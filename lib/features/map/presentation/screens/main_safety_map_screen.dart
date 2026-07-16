@@ -9,7 +9,6 @@ import '../widgets/destination_search_bar.dart';
 import '../../application/location_service.dart';
 import '../../application/geocoding_service.dart';
 import '../widgets/welcome_dialog.dart';
-// import routing service
 import '../../../routing/application/routing_service.dart';
 
 class MainSafetyMapScreen extends ConsumerStatefulWidget {
@@ -66,7 +65,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const EmergencyNotifiedDialog(),
+      builder: (context) => const EmergencyNotifiedDialog(), 
     );
   }
 
@@ -75,17 +74,15 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     // pake provider buat gps
     final locationAsyncValue = ref.watch(liveLocationProvider);
 
-    // Listener for showing the pop up after certain time countdown
+        // Listener for showing the pop up after certain time countdown
     ref.listen<EmergencyStatus>(emergencyProvider, (previous, next) {
       if (next == EmergencyStatus.warning) {
-        _showSafetyCheckPopup(150);
-      } else if (next == EmergencyStatus.safe &&
-          previous == EmergencyStatus.warning) {
-        Navigator.of(context).pop();
-      } else if (next == EmergencyStatus.notifying &&
-          previous == EmergencyStatus.warning) {
-        Navigator.of(context).pop();
-
+        _showSafetyCheckPopup(150); 
+      } else if (next == EmergencyStatus.safe && previous == EmergencyStatus.warning) {
+        Navigator.of(context).pop(); 
+      } else if (next == EmergencyStatus.notifying && previous == EmergencyStatus.warning) {
+        Navigator.of(context).pop(); 
+        
         _showEmergencyNotifiedPopup();
       }
     });
@@ -181,7 +178,64 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  const DestinationSearchBar(),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Expanded(child: DestinationSearchBar()),
+                      const SizedBox(width: 10),
+                      Material(
+                        color: Colors.white,
+                        elevation: 3,
+                        shape: const CircleBorder(),
+                        child: PopupMenuButton<String>(
+                          tooltip: 'Akun',
+                          icon: const Icon(
+                            Icons.account_circle_outlined,
+                            color: Colors.black87,
+                          ),
+                          onSelected: (value) async {
+                            if (value != 'signOut') {
+                              return;
+                            }
+                            final succeeded = await widget.onSignOut();
+                            if (!succeeded && context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                    'Akun belum dapat dikeluarkan. Silakan coba lagi.',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                          itemBuilder: (context) => [
+                            PopupMenuItem<String>(
+                              enabled: false,
+                              child: Text(
+                                widget.displayName,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                            const PopupMenuDivider(),
+                            const PopupMenuItem<String>(
+                              value: 'signOut',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.logout_rounded, color: Colors.red),
+                                  SizedBox(width: 10),
+                                  Text('Keluar'),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                   const SizedBox(height: 16),
 
                   Row(
@@ -251,9 +305,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                       foregroundColor: Colors.white,
                     ),
                     onPressed: () {
-                      // pass dummy distance buat tes ui
-                      _showSafetyCheckPopup(150);
-                      ref.read(emergencyProvider.notifier).triggerWarning();
+                       ref.read(emergencyProvider.notifier).triggerWarning();
                     },
                     icon: const Icon(Icons.bug_report),
                     label: const Text("DEBUG: Test Popup"),
@@ -270,26 +322,19 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                       final destinationPosition = ref.read(destinationProvider);
 
                       // pastikan dua-duanya ga kosong
-                      if (currentPosition != null &&
-                          destinationPosition != null) {
+                      if (currentPosition != null && destinationPosition != null) {
                         // hit api ors
                         final routePoints = await RoutingService.getRoute(
-                          currentPosition,
-                          destinationPosition,
+                          currentPosition, 
+                          destinationPosition
                         );
-
+                        
                         // update state biar polyline ke-gambar
-                        ref
-                            .read(routeProvider.notifier)
-                            .updateRoute(routePoints);
+                        ref.read(routeProvider.notifier).updateRoute(routePoints);
                       } else {
                         // error handling kalau belum pilih tujuan atau gps belum dapet
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Tunggu GPS aktif dan pilih tujuan terlebih dahulu.',
-                            ),
-                          ),
+                          const SnackBar(content: Text('Wait for GPS and select a destination first')),
                         );
                       }
                     },
@@ -297,8 +342,9 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                       backgroundColor: Colors.black87,
                       foregroundColor: Colors.white,
                     ),
-                    child: const Text('DEBUG: Uji rute'),
+                    child: const Text('DEBUG route test'),
                   ),
+<<<<<<< HEAD
 
                   const SizedBox(height: 12), // kasi jarak buat tombol rute
                   // tombol debug buat tes rute
@@ -340,47 +386,8 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                     ),
                     child: const Text('DEBUG route test'),
                   ),
-
-                  const SizedBox(height: 12), // kasi jarak buat tombol rute
-                  // tombol debug buat tes rute
-                  ElevatedButton(
-                    onPressed: () async {
-                      // ambil gps sekarang sama lokasi tujuan dari riverpod
-                      final currentPosition = ref
-                          .read(liveLocationProvider)
-                          .value;
-                      final destinationPosition = ref.read(destinationProvider);
-
-                      // pastikan dua-duanya ga kosong
-                      if (currentPosition != null &&
-                          destinationPosition != null) {
-                        // hit api ors
-                        final routePoints = await RoutingService.getRoute(
-                          currentPosition,
-                          destinationPosition,
-                        );
-
-                        // update state biar polyline ke-gambar
-                        ref
-                            .read(routeProvider.notifier)
-                            .updateRoute(routePoints);
-                      } else {
-                        // error handling kalau belum pilih tujuan atau gps belum dapet
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Tunggu GPS aktif dan pilih tujuan terlebih dahulu.',
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black87,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('DEBUG route test'),
-                  ),
+=======
+>>>>>>> bfa45ab77a9af819cf92ad1c98ece8d2ec5518d0
                 ],
               ),
             ),
@@ -401,158 +408,3 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     );
   }
 }
-
-// class MainSafetyMapScreen extends StatefulWidget {
-//   const MainSafetyMapScreen({super.key});
-
-//   @override
-//   State<MainSafetyMapScreen> createState() => _MainSafetyMapScreenState();
-// }
-
-// class _MainSafetyMapScreenState extends State<MainSafetyMapScreen> {
-//   // buat atur camera gerak
-//   final MapController _mapController = MapController();
-
-//   // live location
-//   LatLng? _currentPosition;
-
-//   // realtime stream
-//   StreamSubscription<Position>? _positionStreamSubscription;
-
-//   @override
-//   void initState() {
-//     super.initState();
-//     _determinePosition();
-//   }
-
-//   // kalau lagi ga di screen dia ga update
-//   @override
-//   void dispose() {
-//     _positionStreamSubscription?.cancel();
-//     super.dispose();
-//   }
-
-//   // permission, data
-//   Future<void> _determinePosition() async {
-//     bool serviceEnabled;
-//     LocationPermission permission;
-
-//     // tes location service
-//     serviceEnabled = await Geolocator.isLocationServiceEnabled();
-//     if (!serviceEnabled) {
-//       return; // Location services are not enabled don't continue
-//     }
-
-//     permission = await Geolocator.checkPermission();
-//     if (permission == LocationPermission.denied) {
-//       permission = await Geolocator.requestPermission();
-//       if (permission == LocationPermission.denied) {
-//         return; // permission denied
-//       }
-//     }
-
-//     if (permission == LocationPermission.deniedForever) {
-//       return; // Permissions are permanently denied
-//     }
-
-//     // initial fetch location
-//     Position position = await Geolocator.getCurrentPosition(
-//       locationSettings: const LocationSettings(
-//         accuracy: LocationAccuracy.high,
-//       ),
-//     );
-
-//     if (!mounted) return;
-
-//     setState(() {
-//       _currentPosition = LatLng(position.latitude, position.longitude);
-//     });
-
-//     // tambahin delay biar ga langsung load
-//     WidgetsBinding.instance.addPostFrameCallback((_) {
-//       if (_currentPosition != null) {
-//         _mapController.move(_currentPosition!, 15.0);
-//       }
-//     });
-
-//     // live update buat 5 meter movement
-//     const locationSettings = LocationSettings(
-//       accuracy: LocationAccuracy.high,
-//       distanceFilter: 5,
-//     );
-
-//     _positionStreamSubscription = Geolocator.getPositionStream(
-//       locationSettings: locationSettings,
-//     ).listen((Position position) {
-//       if (!mounted) return;
-
-//       setState(() {
-//         _currentPosition = LatLng(position.latitude, position.longitude);
-//       });
-
-//       // Note: We update the state to move the blue marker, but we DO NOT
-//       // automatically move the camera here. Otherwise, the user could never
-//       // pan around the map because the camera would constantly snap back to them!
-//     });
-//   }
-
-//   @override
-//   Widget build(BuildContext context) {
-//     return Scaffold(
-//       body: Stack(
-//         children: [
-//           FlutterMap(
-//             mapController: _mapController,
-//             options: const MapOptions(
-//               initialCenter: LatLng(-6.1783, 106.6319), // fallback
-//               initialZoom: 13.0,
-//             ),
-//             children: [
-//               TileLayer(
-//                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-//                 userAgentPackageName: 'com.yourname.jaga',
-//               ),
-//               if (_currentPosition != null) // marker current location
-//                 MarkerLayer(
-//                   markers: [
-//                     Marker(
-//                       point: _currentPosition!,
-//                       width: 50.0,
-//                       height: 50.0,
-//                       child: const Icon(
-//                         Icons.my_location,
-//                         color: Colors.blueAccent,
-//                         size: 40.0,
-//                       ),
-//                     ),
-//                   ],
-//                 ),
-//             ],
-//           ),
-
-//           // 2. Floating User Interface Controls
-//           const SafeArea(
-//             child: Padding(
-//               padding: EdgeInsets.all(16.0),
-//               child: Column(
-//                 children: [
-//                   DestinationSearchBar(),
-//                   // Future team additions (e.g. transport mode toggles) go here smoothly
-//                 ],
-//               ),
-//             ),
-//           ),
-//         ],
-//       ),
-//       floatingActionButton: FloatingActionButton(
-//         onPressed: () {
-//           if (_currentPosition != null) {
-//             _mapController.move(_currentPosition!, 15.0);
-//           }
-//         },
-//         backgroundColor: Colors.white,
-//         child: const Icon(Icons.my_location, color: Colors.blueAccent),
-//       ),
-//     );
-//   }
-// }
