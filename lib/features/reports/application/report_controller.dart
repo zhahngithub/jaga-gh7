@@ -141,6 +141,157 @@ class ReportController extends AsyncNotifier<Report?> {
   }
 }
 
+enum ReportOwnerOperation { idle, editing, deleting }
+
+class ReportOwnerActionState {
+  const ReportOwnerActionState({
+    this.operation = ReportOwnerOperation.idle,
+    this.failure,
+  });
+
+  final ReportOwnerOperation operation;
+  final ReportOwnerActionFailure? failure;
+
+  bool get isEditing => operation == ReportOwnerOperation.editing;
+  bool get isDeleting => operation == ReportOwnerOperation.deleting;
+  bool get isBusy => operation != ReportOwnerOperation.idle;
+}
+
+final reportOwnerActionControllerProvider =
+    NotifierProvider<
+      ReportOwnerActionController,
+      Map<String, ReportOwnerActionState>
+    >(ReportOwnerActionController.new);
+
+class ReportOwnerActionController
+    extends Notifier<Map<String, ReportOwnerActionState>> {
+  @override
+  Map<String, ReportOwnerActionState> build() =>
+      const <String, ReportOwnerActionState>{};
+
+  Future<bool> updateDescription({
+    required Report report,
+    required String description,
+  }) async {
+    if (_stateFor(report.id).isBusy) return false;
+
+    final validationFailure = _ownerFailure(report, requireActive: true);
+    final trimmedDescription = description.trim();
+    if (validationFailure != null) {
+      _setState(report.id, ReportOwnerActionState(failure: validationFailure));
+      return false;
+    }
+    if (trimmedDescription.isEmpty || trimmedDescription.length > 500) {
+      _setState(
+        report.id,
+        const ReportOwnerActionState(
+          failure: ReportOwnerActionFailure.invalidDescription,
+        ),
+      );
+      return false;
+    }
+
+    _setState(
+      report.id,
+      const ReportOwnerActionState(operation: ReportOwnerOperation.editing),
+    );
+    try {
+      await ref
+          .read(reportRepositoryProvider)
+          .updateOwnReportDescription(
+            reportId: report.id,
+            description: trimmedDescription,
+          );
+      _setState(report.id, const ReportOwnerActionState());
+      return true;
+    } on ReportOwnerActionException catch (error) {
+      _setState(
+        report.id,
+        ReportOwnerActionState(failure: error.failure),
+      );
+      return false;
+    } catch (error) {
+      debugPrint(
+        '[ReportOwnerActionController] Edit failed reportId=${report.id} '
+        'errorType=${error.runtimeType}',
+      );
+      _setState(
+        report.id,
+        const ReportOwnerActionState(
+          failure: ReportOwnerActionFailure.unknown,
+        ),
+      );
+      return false;
+    }
+  }
+
+  Future<bool> deleteReport({required Report report}) async {
+    if (_stateFor(report.id).isBusy) return false;
+
+    final validationFailure = _ownerFailure(report);
+    if (validationFailure != null) {
+      _setState(report.id, ReportOwnerActionState(failure: validationFailure));
+      return false;
+    }
+
+    _setState(
+      report.id,
+      const ReportOwnerActionState(operation: ReportOwnerOperation.deleting),
+    );
+    try {
+      await ref
+          .read(reportRepositoryProvider)
+          .deleteOwnReport(reportId: report.id);
+      _setState(report.id, const ReportOwnerActionState());
+      return true;
+    } on ReportOwnerActionException catch (error) {
+      _setState(
+        report.id,
+        ReportOwnerActionState(failure: error.failure),
+      );
+      return false;
+    } catch (error) {
+      debugPrint(
+        '[ReportOwnerActionController] Delete failed reportId=${report.id} '
+        'errorType=${error.runtimeType}',
+      );
+      _setState(
+        report.id,
+        const ReportOwnerActionState(
+          failure: ReportOwnerActionFailure.unknown,
+        ),
+      );
+      return false;
+    }
+  }
+
+  ReportOwnerActionFailure? _ownerFailure(
+    Report report, {
+    bool requireActive = false,
+  }) {
+    final user = ref.read(firebaseAuthProvider).currentUser;
+    if (user == null) return ReportOwnerActionFailure.unauthenticated;
+    if (user.uid != report.creatorId) return ReportOwnerActionFailure.notOwner;
+    if (requireActive && report.status != 'active') {
+      return ReportOwnerActionFailure.notActive;
+    }
+    if (report.status == 'deleted') {
+      return ReportOwnerActionFailure.alreadyDeleted;
+    }
+    return null;
+  }
+
+  ReportOwnerActionState _stateFor(String reportId) =>
+      state[reportId] ?? const ReportOwnerActionState();
+
+  void _setState(String reportId, ReportOwnerActionState actionState) {
+    state = <String, ReportOwnerActionState>{
+      ...state,
+      reportId: actionState,
+    };
+  }
+}
+
 final reportVoteControllerProvider =
     NotifierProvider<
       ReportVoteController,

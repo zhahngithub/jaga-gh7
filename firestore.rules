@@ -117,20 +117,30 @@ service cloud.firestore {
       allow create: if request.auth != null
         && request.resource.data.creatorId == request.auth.uid;
 
-      allow delete: if request.auth != null
-        && resource.data.creatorId == request.auth.uid;
+      allow delete: if false;
 
       allow update: if request.auth != null
         && resource.data.creatorId == request.auth.uid
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        && resource.data.status == 'active'
+        && request.resource.data.description is string
+        && request.resource.data.description.size() > 0
+        && request.resource.data.description.size() <= 500
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'description',
+          'updatedAt'
+        ]);
+
+      allow update: if request.auth != null
+        && resource.data.creatorId == request.auth.uid
+        && resource.data.status != 'deleted'
+        && request.resource.data.status == 'deleted'
+        && request.resource.data.deletedAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'status',
-          'upvoteCount',
-          'downvoteCount',
-          'confidenceScore',
-          'journeysHelpedCount',
-          'createdAt',
-          'expiresAt',
-          'lastValidatedAt'
+          'deletedAt',
+          'updatedAt'
         ]);
 
       match /votes/{userId} {
@@ -139,6 +149,9 @@ service cloud.firestore {
         allow create: if request.auth != null
           && request.auth.uid == userId
           && exists(/databases/$(database)/documents/reports/$(reportId))
+          && get(
+            /databases/$(database)/documents/reports/$(reportId)
+          ).data.status != 'deleted'
           && request.resource.data.keys().hasAll([
             'value',
             'createdAt'
@@ -152,6 +165,10 @@ service cloud.firestore {
 
         allow update: if request.auth != null
           && request.auth.uid == userId
+          && exists(/databases/$(database)/documents/reports/$(reportId))
+          && get(
+            /databases/$(database)/documents/reports/$(reportId)
+          ).data.status != 'deleted'
           && request.resource.data.keys().hasAll([
             'value',
             'createdAt'
