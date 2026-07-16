@@ -239,66 +239,6 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Expanded(child: DestinationSearchBar()),
-                      const SizedBox(width: 10),
-                      Material(
-                        color: Colors.white,
-                        elevation: 3,
-                        shape: const CircleBorder(),
-                        child: PopupMenuButton<String>(
-                          tooltip: 'Akun',
-                          icon: const Icon(
-                            Icons.account_circle_outlined,
-                            color: Colors.black87,
-                          ),
-                          onSelected: (value) async {
-                            if (value != 'signOut') {
-                              return;
-                            }
-                            final succeeded = await widget.onSignOut();
-                            if (!succeeded && context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Akun belum dapat dikeluarkan. Silakan coba lagi.',
-                                  ),
-                                ),
-                              );
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            PopupMenuItem<String>(
-                              enabled: false,
-                              child: Text(
-                                widget.displayName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ),
-                            const PopupMenuDivider(),
-                            const PopupMenuItem<String>(
-                              value: 'signOut',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.logout_rounded, color: Colors.red),
-                                  SizedBox(width: 10),
-                                  Text('Keluar'),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
                   // tombol debug buat pop up danger
                   ElevatedButton.icon(
                     style: ElevatedButton.styleFrom(
