@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -18,10 +19,20 @@ class _MainSafetyMapScreenState extends State<MainSafetyMapScreen> {
   // live location
   LatLng? _currentPosition;
 
+  // realtime stream
+  StreamSubscription<Position>? _positionStreamSubscription;
+
   @override
   void initState() {
     super.initState();
     _determinePosition();
+  }
+
+  // kalau lagi ga di screen dia ga update
+  @override
+  void dispose() {
+    _positionStreamSubscription?.cancel();
+    super.dispose();
   }
 
   // permission, data
@@ -47,7 +58,7 @@ class _MainSafetyMapScreenState extends State<MainSafetyMapScreen> {
       return; // Permissions are permanently denied
     } 
 
-    // When we reach here, permissions are granted and we can get the location
+    // initial fetch location
     Position position = await Geolocator.getCurrentPosition(
       locationSettings: const LocationSettings(
         accuracy: LocationAccuracy.high,
@@ -65,6 +76,26 @@ class _MainSafetyMapScreenState extends State<MainSafetyMapScreen> {
       if (_currentPosition != null) {
         _mapController.move(_currentPosition!, 15.0);
       }
+    });
+
+    // live update buat 5 meter movement
+    const locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 5,
+    );
+
+    _positionStreamSubscription = Geolocator.getPositionStream(
+      locationSettings: locationSettings,
+    ).listen((Position position) {
+      if (!mounted) return;
+      
+      setState(() {
+        _currentPosition = LatLng(position.latitude, position.longitude);
+      });
+      
+      // Note: We update the state to move the blue marker, but we DO NOT 
+      // automatically move the camera here. Otherwise, the user could never 
+      // pan around the map because the camera would constantly snap back to them!
     });
   }
 
