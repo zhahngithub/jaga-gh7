@@ -5,6 +5,33 @@ import '../../../auth/application/auth_providers.dart';
 import '../../application/report_controller.dart';
 import '../../data/models/report.dart';
 
+const _indonesianMonthAbbreviations = <String>[
+  'Jan',
+  'Feb',
+  'Mar',
+  'Apr',
+  'Mei',
+  'Jun',
+  'Jul',
+  'Agu',
+  'Sep',
+  'Okt',
+  'Nov',
+  'Des',
+];
+
+String _createdAtLabel(DateTime? createdAt) {
+  if (createdAt == null) return 'Dibuat: Tanggal tidak tersedia';
+
+  final localDate = createdAt.toLocal();
+  final day = localDate.day.toString().padLeft(2, '0');
+  final hour = localDate.hour.toString().padLeft(2, '0');
+  final minute = localDate.minute.toString().padLeft(2, '0');
+  final month = _indonesianMonthAbbreviations[localDate.month - 1];
+
+  return 'Dibuat: $day $month ${localDate.year}, $hour.$minute';
+}
+
 class ReportDetailBottomSheet extends ConsumerWidget {
   const ReportDetailBottomSheet({required this.initialReport, super.key});
 
@@ -49,6 +76,11 @@ class ReportDetailBottomSheet extends ConsumerWidget {
             ),
             const SizedBox(height: 12),
             Text(report.description),
+            const SizedBox(height: 8),
+            Text(
+              _createdAtLabel(report.createdAt),
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             const SizedBox(height: 20),
             Row(
               children: [

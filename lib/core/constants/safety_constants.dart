@@ -49,6 +49,9 @@ abstract final class SafetyConstants {
   static const double helperNotifyRadiusM = 500;
   static const int helperLocationStaleHours = 2;
 
+  // Map presentation.
+  static const double reportDetailZoom = 16.5;
+
   // Report states.
   static const int confirmUpvotes = 3;
   static const int confirmNet = 3;

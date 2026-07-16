@@ -30,7 +30,7 @@ class Report {
   final int upvoteCount;
   final int downvoteCount;
   final double confidenceScore;
-  final DateTime createdAt;
+  final DateTime? createdAt;
   final DateTime updatedAt;
 
   factory Report.fromJson(Map<String, dynamic> json, {required String id}) {
@@ -47,7 +47,7 @@ class Report {
       upvoteCount: (json['upvoteCount'] as num?)?.toInt() ?? 0,
       downvoteCount: (json['downvoteCount'] as num?)?.toInt() ?? 0,
       confidenceScore: (json['confidenceScore'] as num?)?.toDouble() ?? 0.0,
-      createdAt: _dateTimeFromJson(json['createdAt']),
+      createdAt: _nullableDateTimeFromJson(json['createdAt']),
       updatedAt: _dateTimeFromJson(json['updatedAt']),
     );
   }
@@ -65,7 +65,7 @@ class Report {
       'upvoteCount': upvoteCount,
       'downvoteCount': downvoteCount,
       'confidenceScore': confidenceScore,
-      'createdAt': Timestamp.fromDate(createdAt),
+      if (createdAt != null) 'createdAt': Timestamp.fromDate(createdAt!),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
   }
@@ -94,5 +94,13 @@ class Report {
     if (value is DateTime) return value.toUtc();
     if (value is String) return DateTime.parse(value).toUtc();
     return DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+  }
+
+  static DateTime? _nullableDateTimeFromJson(Object? value) {
+    if (value == null) return null;
+    if (value is Timestamp) return value.toDate().toUtc();
+    if (value is DateTime) return value.toUtc();
+    if (value is String) return DateTime.tryParse(value)?.toUtc();
+    return null;
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:jaga/core/constants/safety_constants.dart';
 import 'package:jaga/features/map/application/emergency_service.dart';
 import 'package:jaga/features/map/presentation/widgets/emergency_notified_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/help_request_dialog.dart';
@@ -33,24 +34,41 @@ class MainSafetyMapScreen extends ConsumerStatefulWidget {
       _MainSafetyMapScreenState();
 }
 
-class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
+class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
+    with SingleTickerProviderStateMixin {
   final MapController _mapController = MapController();
   final GlobalKey _mapKey = GlobalKey();
   final GlobalKey _searchHeaderKey = GlobalKey();
+  late final AnimationController _reportCameraAnimation;
   bool _hasInitialCameraMoved = false;
   bool _isCorrectingDraftCamera = false;
   bool _draftRecenterScheduled = false;
   double? _reportSheetTop;
   double? _lastObservedRotation;
+  LatLng? _selectedReportLocation;
+  LatLng? _cameraAnimationStart;
+  LatLng? _cameraAnimationTarget;
+  double _cameraAnimationStartZoom = 0;
+  double _cameraAnimationTargetZoom = 0;
 
   @override
   void initState() {
     super.initState();
+    _reportCameraAnimation = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 450),
+    )..addListener(_moveReportCameraAnimation);
 
     // tunggu ui selesai build, baru panggil pop up
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _showWelcomePopup();
     });
+  }
+
+  @override
+  void dispose() {
+    _reportCameraAnimation.dispose();
+    super.dispose();
   }
 
   void _showWelcomePopup() {
@@ -100,7 +118,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     );
   }
 
-  Offset? _draftScreenTarget() {
+  Offset? _visibleMapCenter() {
     final mapBox = _mapKey.currentContext?.findRenderObject() as RenderBox?;
     final headerBox =
         _searchHeaderKey.currentContext?.findRenderObject() as RenderBox?;
@@ -132,7 +150,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     if (_isCorrectingDraftCamera) return;
 
     final draftLocation = ref.read(draftLocationProvider);
-    final desiredScreenPoint = _draftScreenTarget();
+    final desiredScreenPoint = _visibleMapCenter();
     if (draftLocation == null || desiredScreenPoint == null) return;
 
     final camera = updatedCamera ?? _mapController.camera;
@@ -174,7 +192,75 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     _scheduleDraftCameraCorrection();
   }
 
-  void _handleMapPositionChanged(MapCamera camera, bool _) {
+  void _moveReportCameraAnimation() {
+    final start = _cameraAnimationStart;
+    final target = _cameraAnimationTarget;
+    if (start == null || target == null || !mounted) return;
+
+    final progress = Curves.easeOutCubic.transform(
+      _reportCameraAnimation.value,
+    );
+    final center = LatLng(
+      start.latitude + (target.latitude - start.latitude) * progress,
+      start.longitude + (target.longitude - start.longitude) * progress,
+    );
+    final zoom =
+        _cameraAnimationStartZoom +
+        (_cameraAnimationTargetZoom - _cameraAnimationStartZoom) * progress;
+
+    _mapController.move(center, zoom);
+  }
+
+  void _animateSelectedReportCamera() {
+    final reportLocation = _selectedReportLocation;
+    final desiredScreenPoint = _visibleMapCenter();
+    if (reportLocation == null || desiredScreenPoint == null) return;
+
+    final camera = _mapController.camera;
+    final targetZoom = camera.zoom < SafetyConstants.reportDetailZoom
+        ? SafetyConstants.reportDetailZoom
+        : camera.zoom;
+    final targetCamera = camera.withPosition(zoom: targetZoom);
+    final reportScreenPoint = targetCamera.latLngToScreenOffset(reportLocation);
+    final screenError = reportScreenPoint - desiredScreenPoint;
+    final viewportCenter = Offset(
+      targetCamera.nonRotatedSize.width / 2,
+      targetCamera.nonRotatedSize.height / 2,
+    );
+    final targetCenter = targetCamera.screenOffsetToLatLng(
+      viewportCenter + screenError,
+    );
+
+    final centerAlreadyCorrect =
+        camera.latLngToScreenOffset(reportLocation) - desiredScreenPoint;
+    if (centerAlreadyCorrect.distance < 0.5 &&
+        (camera.zoom - targetZoom).abs() < 0.01) {
+      return;
+    }
+
+    _reportCameraAnimation.stop();
+    _cameraAnimationStart = camera.center;
+    _cameraAnimationTarget = targetCenter;
+    _cameraAnimationStartZoom = camera.zoom;
+    _cameraAnimationTargetZoom = targetZoom;
+    _reportCameraAnimation.forward(from: 0);
+  }
+
+  void _handleReportDetailSheetTopChanged(double top) {
+    if (_selectedReportLocation == null) return;
+    if (_reportSheetTop != null && (_reportSheetTop! - top).abs() < 2) {
+      return;
+    }
+
+    _reportSheetTop = top;
+    _animateSelectedReportCamera();
+  }
+
+  void _handleMapPositionChanged(MapCamera camera, bool hasGesture) {
+    if (hasGesture && _reportCameraAnimation.isAnimating) {
+      _reportCameraAnimation.stop();
+    }
+
     final previousRotation = _lastObservedRotation;
     _lastObservedRotation = camera.rotation;
 
@@ -365,15 +451,36 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                       height: 48,
                       child: GestureDetector(
                         behavior: HitTestBehavior.opaque,
-                        onTap: () {
+                        onTap: () async {
                           FocusScope.of(context).unfocus();
-                          showModalBottomSheet<void>(
-                            context: context,
-                            isScrollControlled: true,
-                            useSafeArea: true,
-                            builder: (_) =>
-                                ReportDetailBottomSheet(initialReport: report),
+                          _reportSheetTop = null;
+                          _selectedReportLocation = LatLng(
+                            report.location.latitude,
+                            report.location.longitude,
                           );
+
+                          try {
+                            await showModalBottomSheet<void>(
+                              context: context,
+                              isScrollControlled: true,
+                              useSafeArea: true,
+                              barrierColor: Colors.transparent,
+                              builder: (_) => _ReportSheetBoundsObserver(
+                                reportDuringTransition: false,
+                                onTopChanged:
+                                    _handleReportDetailSheetTopChanged,
+                                child: ReportDetailBottomSheet(
+                                  initialReport: report,
+                                ),
+                              ),
+                            );
+                          } finally {
+                            if (mounted) {
+                              _reportCameraAnimation.stop();
+                              _selectedReportLocation = null;
+                              _reportSheetTop = null;
+                            }
+                          }
                         },
                         child: Tooltip(
                           message: report.category.replaceAll('_', ' '),
@@ -539,10 +646,12 @@ class _ReportSheetBoundsObserver extends StatefulWidget {
   const _ReportSheetBoundsObserver({
     required this.onTopChanged,
     required this.child,
+    this.reportDuringTransition = true,
   });
 
   final ValueChanged<double> onTopChanged;
   final Widget child;
+  final bool reportDuringTransition;
 
   @override
   State<_ReportSheetBoundsObserver> createState() =>
@@ -569,8 +678,12 @@ class _ReportSheetBoundsObserverState extends State<_ReportSheetBoundsObserver>
     final animation = ModalRoute.of(context)?.animation;
     if (!identical(animation, _routeAnimation)) {
       _routeAnimation?.removeListener(_scheduleMeasurement);
+      _routeAnimation?.removeStatusListener(_handleRouteAnimationStatus);
       _routeAnimation = animation;
-      _routeAnimation?.addListener(_scheduleMeasurement);
+      if (widget.reportDuringTransition) {
+        _routeAnimation?.addListener(_scheduleMeasurement);
+      }
+      _routeAnimation?.addStatusListener(_handleRouteAnimationStatus);
     }
     _scheduleMeasurement();
   }
@@ -578,7 +691,20 @@ class _ReportSheetBoundsObserverState extends State<_ReportSheetBoundsObserver>
   @override
   void didUpdateWidget(covariant _ReportSheetBoundsObserver oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.reportDuringTransition != widget.reportDuringTransition) {
+      if (widget.reportDuringTransition) {
+        _routeAnimation?.addListener(_scheduleMeasurement);
+      } else {
+        _routeAnimation?.removeListener(_scheduleMeasurement);
+      }
+    }
     _scheduleMeasurement();
+  }
+
+  void _handleRouteAnimationStatus(AnimationStatus status) {
+    if (status == AnimationStatus.completed) {
+      _scheduleMeasurement();
+    }
   }
 
   @override
@@ -593,6 +719,12 @@ class _ReportSheetBoundsObserverState extends State<_ReportSheetBoundsObserver>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _measurementScheduled = false;
       if (!mounted) return;
+      final routeStatus = _routeAnimation?.status;
+      if (!widget.reportDuringTransition &&
+          routeStatus != null &&
+          routeStatus != AnimationStatus.completed) {
+        return;
+      }
 
       final box = _boundsKey.currentContext?.findRenderObject() as RenderBox?;
       if (box == null || !box.hasSize) return;
@@ -610,6 +742,7 @@ class _ReportSheetBoundsObserverState extends State<_ReportSheetBoundsObserver>
   @override
   void dispose() {
     _routeAnimation?.removeListener(_scheduleMeasurement);
+    _routeAnimation?.removeStatusListener(_handleRouteAnimationStatus);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
