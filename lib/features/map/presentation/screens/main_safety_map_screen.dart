@@ -35,7 +35,13 @@ class MainSafetyMapScreen extends ConsumerStatefulWidget {
 
 class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
   final MapController _mapController = MapController();
+  final GlobalKey _mapKey = GlobalKey();
+  final GlobalKey _searchHeaderKey = GlobalKey();
   bool _hasInitialCameraMoved = false;
+  bool _isCorrectingDraftCamera = false;
+  bool _draftRecenterScheduled = false;
+  double? _reportSheetTop;
+  double? _lastObservedRotation;
 
   @override
   void initState() {
@@ -94,19 +100,91 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     );
   }
 
-  LatLng _cameraCenterForDraft(
-    LatLng tappedLocation, {
-    double coveredHeightFraction = 0.45,
-  }) {
-    final camera = _mapController.camera;
-    final projectedTarget = camera.projectAtZoom(tappedLocation, camera.zoom);
-    final verticalOffset =
-        camera.nonRotatedSize.height * coveredHeightFraction / 2;
+  Offset? _draftScreenTarget() {
+    final mapBox = _mapKey.currentContext?.findRenderObject() as RenderBox?;
+    final headerBox =
+        _searchHeaderKey.currentContext?.findRenderObject() as RenderBox?;
+    final sheetTop = _reportSheetTop;
 
-    return camera.unprojectAtZoom(
-      Offset(projectedTarget.dx, projectedTarget.dy + verticalOffset),
-      camera.zoom,
+    if (mapBox == null ||
+        headerBox == null ||
+        sheetTop == null ||
+        !mapBox.hasSize ||
+        !headerBox.hasSize) {
+      return null;
+    }
+
+    final mapTop = mapBox.localToGlobal(Offset.zero).dy;
+    final availableTop =
+        headerBox.localToGlobal(Offset(0, headerBox.size.height)).dy - mapTop;
+    final availableBottom = sheetTop - mapTop;
+    final clampedTop = availableTop.clamp(0.0, mapBox.size.height).toDouble();
+    final clampedBottom = availableBottom
+        .clamp(0.0, mapBox.size.height)
+        .toDouble();
+
+    if (clampedBottom <= clampedTop) return null;
+
+    return Offset(mapBox.size.width / 2, (clampedTop + clampedBottom) / 2);
+  }
+
+  void _correctDraftCamera([MapCamera? updatedCamera]) {
+    if (_isCorrectingDraftCamera) return;
+
+    final draftLocation = ref.read(draftLocationProvider);
+    final desiredScreenPoint = _draftScreenTarget();
+    if (draftLocation == null || desiredScreenPoint == null) return;
+
+    final camera = updatedCamera ?? _mapController.camera;
+    final currentScreenPoint = camera.latLngToScreenOffset(draftLocation);
+    final screenError = currentScreenPoint - desiredScreenPoint;
+    if (screenError.distance < 0.5) return;
+
+    final viewportCenter = Offset(
+      camera.nonRotatedSize.width / 2,
+      camera.nonRotatedSize.height / 2,
     );
+    final correctedCenter = camera.screenOffsetToLatLng(
+      viewportCenter + screenError,
+    );
+
+    _isCorrectingDraftCamera = true;
+    try {
+      _mapController.move(correctedCenter, camera.zoom);
+    } finally {
+      _isCorrectingDraftCamera = false;
+    }
+  }
+
+  void _scheduleDraftCameraCorrection() {
+    if (_draftRecenterScheduled) return;
+    _draftRecenterScheduled = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _draftRecenterScheduled = false;
+      if (mounted) _correctDraftCamera();
+    });
+  }
+
+  void _handleReportSheetTopChanged(double top) {
+    if (_reportSheetTop != null && (_reportSheetTop! - top).abs() < 0.5) {
+      return;
+    }
+    _reportSheetTop = top;
+    _scheduleDraftCameraCorrection();
+  }
+
+  void _handleMapPositionChanged(MapCamera camera, bool _) {
+    final previousRotation = _lastObservedRotation;
+    _lastObservedRotation = camera.rotation;
+
+    if (_isCorrectingDraftCamera || previousRotation == null) return;
+
+    final rotationDelta =
+        ((camera.rotation - previousRotation + 540) % 360) - 180;
+    if (rotationDelta.abs() > 0.001) {
+      _correctDraftCamera(camera);
+    }
   }
 
   @override
@@ -136,10 +214,15 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
       body: Stack(
         children: [
           FlutterMap(
+            key: _mapKey,
             mapController: _mapController,
             options: MapOptions(
               initialCenter: const LatLng(-6.1783, 106.6319), // fallback
               initialZoom: 13.0,
+              onMapReady: () {
+                _lastObservedRotation = _mapController.camera.rotation;
+              },
+              onPositionChanged: _handleMapPositionChanged,
               onTap: (_, location) async {
                 debugPrint(
                   'MAP REPORT TAP: '
@@ -147,10 +230,8 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                 );
                 FocusScope.of(context).unfocus();
                 ref.read(searchResultsVisibleProvider.notifier).hide();
+                _reportSheetTop = null;
                 ref.read(draftLocationProvider.notifier).setLocation(location);
-                final camera = _mapController.camera;
-                final visibleAreaCenter = _cameraCenterForDraft(location);
-                _mapController.move(visibleAreaCenter, camera.zoom);
 
                 try {
                   await showModalBottomSheet<void>(
@@ -158,10 +239,14 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                     isScrollControlled: true,
                     useSafeArea: true,
                     barrierColor: Colors.transparent,
-                    builder: (_) => ReportBottomSheet(location: location),
+                    builder: (_) => _ReportSheetBoundsObserver(
+                      onTopChanged: _handleReportSheetTopChanged,
+                      child: ReportBottomSheet(location: location),
+                    ),
                   );
                 } finally {
                   if (mounted) {
+                    _reportSheetTop = null;
                     ref.read(draftLocationProvider.notifier).clear();
                   }
                 }
@@ -244,6 +329,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
 
               // draft report + submitted report markers
               MarkerLayer(
+                rotate: true,
                 markers: [
                   if (draftLocation != null)
                     Marker(
@@ -306,65 +392,74 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
               padding: const EdgeInsets.all(16.0),
               child: Column(
                 children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  Column(
+                    key: _searchHeaderKey,
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Expanded(child: DestinationSearchBar()),
-                      const SizedBox(width: 10),
-                      Material(
-                        color: Colors.white,
-                        elevation: 3,
-                        shape: const CircleBorder(),
-                        child: PopupMenuButton<String>(
-                          tooltip: 'Akun',
-                          icon: const Icon(
-                            Icons.account_circle_outlined,
-                            color: Colors.black87,
-                          ),
-                          onSelected: (value) async {
-                            if (value != 'signOut') {
-                              return;
-                            }
-                            final succeeded = await widget.onSignOut();
-                            if (!succeeded && context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Akun belum dapat dikeluarkan. Silakan coba lagi.',
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Expanded(child: DestinationSearchBar()),
+                          const SizedBox(width: 10),
+                          Material(
+                            color: Colors.white,
+                            elevation: 3,
+                            shape: const CircleBorder(),
+                            child: PopupMenuButton<String>(
+                              tooltip: 'Akun',
+                              icon: const Icon(
+                                Icons.account_circle_outlined,
+                                color: Colors.black87,
+                              ),
+                              onSelected: (value) async {
+                                if (value != 'signOut') {
+                                  return;
+                                }
+                                final succeeded = await widget.onSignOut();
+                                if (!succeeded && context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Akun belum dapat dikeluarkan. Silakan coba lagi.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                              itemBuilder: (context) => [
+                                PopupMenuItem<String>(
+                                  enabled: false,
+                                  child: Text(
+                                    widget.displayName,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
                                   ),
                                 ),
-                              );
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            PopupMenuItem<String>(
-                              enabled: false,
-                              child: Text(
-                                widget.displayName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
+                                const PopupMenuDivider(),
+                                const PopupMenuItem<String>(
+                                  value: 'signOut',
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.logout_rounded,
+                                        color: Colors.red,
+                                      ),
+                                      SizedBox(width: 10),
+                                      Text('Keluar'),
+                                    ],
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
-                            const PopupMenuDivider(),
-                            const PopupMenuItem<String>(
-                              value: 'signOut',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.logout_rounded, color: Colors.red),
-                                  SizedBox(width: 10),
-                                  Text('Keluar'),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 16),
                     ],
                   ),
-                  const SizedBox(height: 16),
 
                   // tombol debug buat pop up danger
                   ElevatedButton.icon(
@@ -435,6 +530,101 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
         },
         backgroundColor: Colors.white,
         child: const Icon(Icons.my_location, color: Colors.blueAccent),
+      ),
+    );
+  }
+}
+
+class _ReportSheetBoundsObserver extends StatefulWidget {
+  const _ReportSheetBoundsObserver({
+    required this.onTopChanged,
+    required this.child,
+  });
+
+  final ValueChanged<double> onTopChanged;
+  final Widget child;
+
+  @override
+  State<_ReportSheetBoundsObserver> createState() =>
+      _ReportSheetBoundsObserverState();
+}
+
+class _ReportSheetBoundsObserverState extends State<_ReportSheetBoundsObserver>
+    with WidgetsBindingObserver {
+  final GlobalKey _boundsKey = GlobalKey();
+  Animation<double>? _routeAnimation;
+  bool _measurementScheduled = false;
+  double? _lastReportedTop;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final animation = ModalRoute.of(context)?.animation;
+    if (!identical(animation, _routeAnimation)) {
+      _routeAnimation?.removeListener(_scheduleMeasurement);
+      _routeAnimation = animation;
+      _routeAnimation?.addListener(_scheduleMeasurement);
+    }
+    _scheduleMeasurement();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ReportSheetBoundsObserver oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _scheduleMeasurement();
+  }
+
+  @override
+  void didChangeMetrics() {
+    _scheduleMeasurement();
+  }
+
+  void _scheduleMeasurement() {
+    if (_measurementScheduled) return;
+    _measurementScheduled = true;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _measurementScheduled = false;
+      if (!mounted) return;
+
+      final box = _boundsKey.currentContext?.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) return;
+
+      final top = box.localToGlobal(Offset.zero).dy;
+      if (_lastReportedTop != null && (_lastReportedTop! - top).abs() < 0.5) {
+        return;
+      }
+
+      _lastReportedTop = top;
+      widget.onTopChanged(top);
+    });
+  }
+
+  @override
+  void dispose() {
+    _routeAnimation?.removeListener(_scheduleMeasurement);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    _scheduleMeasurement();
+
+    return NotificationListener<SizeChangedLayoutNotification>(
+      onNotification: (_) {
+        _scheduleMeasurement();
+        return false;
+      },
+      child: SizeChangedLayoutNotifier(
+        child: KeyedSubtree(key: _boundsKey, child: widget.child),
       ),
     );
   }
