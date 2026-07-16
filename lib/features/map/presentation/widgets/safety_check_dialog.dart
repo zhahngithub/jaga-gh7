@@ -23,7 +23,7 @@ class SafetyCheckDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Warning Icon using the system's error color (defaults to red)
-            Icon(Icons.warning_amber_rounded, size: 80, color: AppColors.primary), 
+            Icon(Icons.warning_amber_rounded, size: 80, color: Colors.red), 
             const SizedBox(height: 16),
             
             const Text(
@@ -53,7 +53,7 @@ class SafetyCheckDialog extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 style: OutlinedButton.styleFrom(
-                  backgroundColor: AppColors.primary, // Danger color
+                  backgroundColor: Colors.red, // Danger color
                   foregroundColor: Colors.white, // Text color
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
@@ -79,7 +79,7 @@ class SafetyCheckDialog extends StatelessWidget {
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: BorderSide(color: AppColors.primary), // Blue border
+                  side: BorderSide(color: Colors.grey), // Blue border
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
@@ -94,7 +94,7 @@ class SafetyCheckDialog extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 16, 
                     fontWeight: FontWeight.bold,
-                    color: AppColors.primary, // Blue text
+                    color: Colors.grey, // Blue text
                   ),
                 ),
               ),
