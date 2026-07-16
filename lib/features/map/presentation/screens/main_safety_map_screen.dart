@@ -14,7 +14,41 @@ class MainSafetyMapScreen extends ConsumerStatefulWidget {
   ConsumerState<MainSafetyMapScreen> createState() => _MainSafetyMapScreenState();
 }
 
-class _MainSafetyMapScreenState extends State<MainSafetyMapScreen> {
+class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
+  final MapController _mapController = MapController();
+  bool _hasInitialCameraMoved = false;
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Wait for the UI to finish building, then show the pop-up
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _showWelcomePopup();
+    });
+  }
+
+  void _showWelcomePopup() {
+    showDialog(
+      context: context,
+      barrierDismissible: false, // Prevents closing by tapping outside the box
+      builder: (BuildContext context) {
+        // Render your reusable component here
+        return const WelcomeDialog(username: "Ricky"); 
+      },
+    );
+  }
+
+  void _showSafetyCheckPopup(int distance) {
+    showDialog(
+      context: context,
+      barrierDismissible: false, 
+      builder: (BuildContext context) {
+        return SafetyCheckDialog(distanceInMeters: distance);
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // pake provider
@@ -34,17 +68,61 @@ class _MainSafetyMapScreenState extends State<MainSafetyMapScreen> {
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.yourname.jaga',
               ),
+              
+              // kalau ada data location, draw marker
+              locationAsyncValue.when(
+                data: (currentPosition) {
+                  // pindahin kamera kalau gerak
+                  if (!_hasInitialCameraMoved) {
+                    _hasInitialCameraMoved = true;
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      _mapController.move(currentPosition, 15.0);
+                    });
+                  }
+                  
+                  return MarkerLayer(
+                    markers: [
+                      Marker(
+                        point: currentPosition,
+                        width: 50.0,
+                        height: 50.0,
+                        child: const Icon(
+                          Icons.my_location,
+                          color: Colors.blueAccent,
+                          size: 40.0,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (error, stack) => const SizedBox.shrink(),
+              ),
             ],
           ),
 
-          // 2. Floating User Interface Controls
-          const SafeArea(
+          SafeArea(
             child: Padding(
               padding: EdgeInsets.all(16.0),
               child: Column(
                 children: [
                   DestinationSearchBar(),
-                  // Future team additions (e.g. transport mode toggles) go here smoothly
+                  // OTHER ADDITIONS
+                  const SizedBox(height: 16), // Space before the button
+                  
+                  // 3. --- DEBUG BUTTON ---
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange, // Orange to mark it as a debug tool
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      // Pass a dummy distance to test the UI
+                      _showSafetyCheckPopup(150); 
+                    },
+                    icon: const Icon(Icons.bug_report),
+                    label: const Text("DEBUG: Test Danger Popup"),
+                  ),
                 ],
               ),
             ),
