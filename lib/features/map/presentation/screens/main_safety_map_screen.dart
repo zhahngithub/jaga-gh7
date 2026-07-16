@@ -44,7 +44,6 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      barrierDismissible: false,
       builder: (BuildContext context) {
         return WelcomeDialog(username: widget.displayName);
       },
@@ -65,7 +64,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const EmergencyNotifiedDialog(), 
+      builder: (context) => const EmergencyNotifiedDialog(),
     );
   }
 
@@ -74,15 +73,17 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     // pake provider buat gps
     final locationAsyncValue = ref.watch(liveLocationProvider);
 
-        // Listener for showing the pop up after certain time countdown
+    // Listener for showing the pop up after certain time countdown
     ref.listen<EmergencyStatus>(emergencyProvider, (previous, next) {
       if (next == EmergencyStatus.warning) {
-        _showSafetyCheckPopup(150); 
-      } else if (next == EmergencyStatus.safe && previous == EmergencyStatus.warning) {
-        Navigator.of(context).pop(); 
-      } else if (next == EmergencyStatus.notifying && previous == EmergencyStatus.warning) {
-        Navigator.of(context).pop(); 
-        
+        _showSafetyCheckPopup(150);
+      } else if (next == EmergencyStatus.safe &&
+          previous == EmergencyStatus.warning) {
+        Navigator.of(context).pop();
+      } else if (next == EmergencyStatus.notifying &&
+          previous == EmergencyStatus.warning) {
+        Navigator.of(context).pop();
+
         _showEmergencyNotifiedPopup();
       }
     });
@@ -305,46 +306,11 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                       foregroundColor: Colors.white,
                     ),
                     onPressed: () {
-                       ref.read(emergencyProvider.notifier).triggerWarning();
+                      ref.read(emergencyProvider.notifier).triggerWarning();
                     },
                     icon: const Icon(Icons.bug_report),
                     label: const Text("DEBUG: Test Popup"),
                   ),
-
-                  const SizedBox(height: 12), // kasi jarak buat tombol rute
-                  // tombol debug buat tes rute
-                  ElevatedButton(
-                    onPressed: () async {
-                      // ambil gps sekarang sama lokasi tujuan dari riverpod
-                      final currentPosition = ref
-                          .read(liveLocationProvider)
-                          .value;
-                      final destinationPosition = ref.read(destinationProvider);
-
-                      // pastikan dua-duanya ga kosong
-                      if (currentPosition != null && destinationPosition != null) {
-                        // hit api ors
-                        final routePoints = await RoutingService.getRoute(
-                          currentPosition, 
-                          destinationPosition
-                        );
-                        
-                        // update state biar polyline ke-gambar
-                        ref.read(routeProvider.notifier).updateRoute(routePoints);
-                      } else {
-                        // error handling kalau belum pilih tujuan atau gps belum dapet
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Wait for GPS and select a destination first')),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black87,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('DEBUG route test'),
-                  ),
-<<<<<<< HEAD
 
                   const SizedBox(height: 12), // kasi jarak buat tombol rute
                   // tombol debug buat tes rute
@@ -374,7 +340,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
                             content: Text(
-                              'Tunggu GPS aktif dan pilih tujuan terlebih dahulu.',
+                              'Wait for GPS and select a destination first',
                             ),
                           ),
                         );
@@ -386,8 +352,6 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                     ),
                     child: const Text('DEBUG route test'),
                   ),
-=======
->>>>>>> bfa45ab77a9af819cf92ad1c98ece8d2ec5518d0
                 ],
               ),
             ),
