@@ -50,19 +50,31 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     );
   }
 
+  void _dismissSearch() {
+    FocusScope.of(context).unfocus();
+    ref.read(searchResultsVisibleProvider.notifier).hide();
+  }
+
   @override
   Widget build(BuildContext context) {
     // pake provider
     final locationAsyncValue = ref.watch(liveLocationProvider);
 
     return Scaffold(
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
           FlutterMap(
             mapController: _mapController,
-            options: const MapOptions(
+            options: MapOptions(
               initialCenter: LatLng(-6.1783, 106.6319), // fallback
               initialZoom: 13.0,
+              onTap: (_, _) => _dismissSearch(),
+              onPositionChanged: (_, hasGesture) {
+                if (hasGesture) {
+                  _dismissSearch();
+                }
+              },
             ),
             children: [
               TileLayer(

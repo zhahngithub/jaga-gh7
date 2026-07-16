@@ -2,6 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../application/geocoding_service.dart';
 
+final searchResultsVisibleProvider =
+    NotifierProvider<SearchResultsVisibleNotifier, bool>(
+  SearchResultsVisibleNotifier.new,
+);
+
+class SearchResultsVisibleNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void show() => state = true;
+
+  void hide() => state = false;
+}
+
 class DestinationSearchBar extends ConsumerStatefulWidget {
   const DestinationSearchBar({super.key});
 
@@ -19,11 +33,13 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
   // hit api pas enter
   Future<void> _handleSearch(String query) async {
     // kalau kosong reset
-    if (query.isEmpty) {
+    if (query.trim().isEmpty) {
       setState(() => _searchResults = []);
+      ref.read(searchResultsVisibleProvider.notifier).hide();
       return;
     }
 
+    ref.read(searchResultsVisibleProvider.notifier).show();
     setState(() {
       _isLoading = true;
       _searchResults = []; 
@@ -56,6 +72,7 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
     setState(() {
       _searchResults = [];
     });
+    ref.read(searchResultsVisibleProvider.notifier).hide();
     
     // tutup keyboard
     FocusScope.of(context).unfocus();
@@ -69,6 +86,8 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
 
   @override
   Widget build(BuildContext context) {
+    final showSearchResults = ref.watch(searchResultsVisibleProvider);
+
     return Column(
       children: [
         // bungkus search bar
@@ -97,7 +116,15 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
                     hintText: 'Cari tujuan...',
                     border: InputBorder.none,
                   ),
-                  onSubmitted: _handleSearch, 
+                  onChanged: (query) {
+                    if (query.trim().isEmpty) {
+                      setState(() => _searchResults = []);
+                      ref
+                          .read(searchResultsVisibleProvider.notifier)
+                          .hide();
+                    }
+                  },
+                  onSubmitted: _handleSearch,
                 ),
               ),
               if (_isLoading)
@@ -111,7 +138,7 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
         ),
         
         // dropdown result list
-        if (_searchResults.isNotEmpty)
+        if (showSearchResults && _searchResults.isNotEmpty)
           Container(
             margin: const EdgeInsets.only(top: 8.0),
             // tetep pake container buat margin sama bates tinggi
