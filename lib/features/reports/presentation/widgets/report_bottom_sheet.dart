@@ -17,13 +17,18 @@ class _ReportBottomSheetState extends ConsumerState<ReportBottomSheet> {
   final _formKey = GlobalKey<FormState>();
   final _descriptionController = TextEditingController();
   String? _selectedCategory;
+  String? _submissionError;
 
   static const _categoryLabels = <String, String>{
     'poor_lighting': 'Poor lighting',
-    'damaged_road': 'Damaged road',
+    'accident_prone': 'Accident prone',
+    'suspicious_activity': 'Suspicious activity',
     'harassment': 'Harassment',
-    'police_station': 'Police station',
+    'other_hazard': 'Other hazard',
     'cctv': 'CCTV',
+    'police_station': 'Police station',
+    'security_post': 'Security post',
+    'other_security_presence': 'Other security presence',
   };
 
   @override
@@ -33,30 +38,87 @@ class _ReportBottomSheetState extends ConsumerState<ReportBottomSheet> {
   }
 
   Future<void> _submit() async {
-    if (!_formKey.currentState!.validate()) return;
+    debugPrint('[ReportBottomSheet] Submit button pressed.');
 
-    await ref
-        .read(reportControllerProvider.notifier)
-        .submitReport(
-          widget.location,
-          _selectedCategory!,
-          _descriptionController.text,
-        );
+    if (_submissionError != null) {
+      setState(() => _submissionError = null);
+    }
 
-    if (!mounted) return;
-
-    final result = ref.read(reportControllerProvider);
-    if (result.hasError) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(result.error.toString())));
+    final formState = _formKey.currentState;
+    if (formState == null) {
+      debugPrint('[ReportBottomSheet] Validation failed: form state is null.');
+      _showSubmissionError('Report form is not ready.');
       return;
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Report submitted.')));
-    Navigator.of(context).pop();
+    final isFormValid = formState.validate();
+    final category = _selectedCategory;
+    final description = _descriptionController.text.trim();
+
+    if (!isFormValid || category == null || description.isEmpty) {
+      debugPrint(
+        '[ReportBottomSheet] Validation failed. '
+        'category=$category, descriptionLength=${description.length}',
+      );
+      return;
+    }
+
+    debugPrint(
+      '[ReportBottomSheet] Validation succeeded. '
+      'category=$category, descriptionLength=${description.length}',
+    );
+
+    try {
+      debugPrint('[ReportBottomSheet] Calling ReportController.submitReport.');
+
+      final savedReport = await ref
+          .read(reportControllerProvider.notifier)
+          .submitReport(widget.location, category, description);
+
+      debugPrint(
+        '[ReportBottomSheet] ReportController call completed. '
+        'reportId=${savedReport.id}',
+      );
+
+      if (!mounted) {
+        debugPrint(
+          '[ReportBottomSheet] Widget unmounted after controller call.',
+        );
+        return;
+      }
+
+      if (savedReport.id.isEmpty) {
+        throw StateError('Firestore did not return a report document ID.');
+      }
+
+      debugPrint('[ReportBottomSheet] Submission succeeded.');
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Report submitted.')));
+      ref.read(draftLocationProvider.notifier).clear();
+      Navigator.of(context).pop();
+    } catch (error, stackTrace) {
+      debugPrint('[ReportBottomSheet] Submission error caught: $error');
+      debugPrintStack(
+        label: '[ReportBottomSheet] Submission stack trace',
+        stackTrace: stackTrace,
+      );
+
+      if (mounted) {
+        _showSubmissionError(error);
+      }
+    }
+  }
+
+  void _showSubmissionError(Object error) {
+    final message = error.toString();
+    setState(() => _submissionError = message);
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(backgroundColor: Colors.red, content: Text(message)),
+      );
   }
 
   @override
@@ -73,6 +135,7 @@ class _ReportBottomSheetState extends ConsumerState<ReportBottomSheet> {
         ),
         child: Form(
           key: _formKey,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -98,7 +161,12 @@ class _ReportBottomSheetState extends ConsumerState<ReportBottomSheet> {
                     .toList(growable: false),
                 onChanged: submission.isLoading
                     ? null
-                    : (value) => setState(() => _selectedCategory = value),
+                    : (value) {
+                        setState(() {
+                          _selectedCategory = value;
+                          _submissionError = null;
+                        });
+                      },
                 validator: (value) =>
                     value == null ? 'Select a report category.' : null,
               ),
@@ -114,11 +182,32 @@ class _ReportBottomSheetState extends ConsumerState<ReportBottomSheet> {
                   alignLabelWithHint: true,
                   border: OutlineInputBorder(),
                 ),
+                onChanged: (_) {
+                  if (_submissionError != null) {
+                    setState(() => _submissionError = null);
+                  }
+                },
                 validator: (value) => value == null || value.trim().isEmpty
                     ? 'Enter a short description.'
                     : null,
               ),
               const SizedBox(height: 8),
+              if (_submissionError != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    _submissionError!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onErrorContainer,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               FilledButton.icon(
                 onPressed: submission.isLoading ? null : _submit,
                 icon: submission.isLoading

@@ -6,7 +6,11 @@ import 'package:jaga/features/map/presentation/widgets/emergency_notified_dialog
 import 'package:jaga/features/map/presentation/widgets/help_request_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/nearby_notified_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/safety_check_dialog.dart';
+import 'package:jaga/features/reports/application/report_controller.dart';
+import 'package:jaga/features/reports/data/models/report.dart';
 import 'package:jaga/features/reports/presentation/widgets/report_bottom_sheet.dart';
+import 'package:jaga/features/reports/presentation/widgets/report_detail_bottom_sheet.dart';
+import 'package:jaga/features/reports/presentation/widgets/report_marker_icon.dart';
 import 'package:latlong2/latlong.dart';
 import '../widgets/destination_search_bar.dart';
 import '../../application/location_service.dart';
@@ -90,10 +94,28 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
     );
   }
 
+  LatLng _cameraCenterForDraft(
+    LatLng tappedLocation, {
+    double coveredHeightFraction = 0.45,
+  }) {
+    final camera = _mapController.camera;
+    final projectedTarget = camera.projectAtZoom(tappedLocation, camera.zoom);
+    final verticalOffset =
+        camera.nonRotatedSize.height * coveredHeightFraction / 2;
+
+    return camera.unprojectAtZoom(
+      Offset(projectedTarget.dx, projectedTarget.dy + verticalOffset),
+      camera.zoom,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     // pake provider buat gps
     final locationAsyncValue = ref.watch(liveLocationProvider);
+    final draftLocation = ref.watch(draftLocationProvider);
+    final reportsAsync = ref.watch(visibleReportsProvider);
+    final visibleReports = reportsAsync.value ?? const <Report>[];
 
     // Listener for showing the pop up after certain time countdown
     ref.listen<EmergencyStatus>(emergencyProvider, (previous, next) {
@@ -118,20 +140,31 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
             options: MapOptions(
               initialCenter: const LatLng(-6.1783, 106.6319), // fallback
               initialZoom: 13.0,
-              onTap: (_, location) {
+              onTap: (_, location) async {
                 debugPrint(
                   'MAP REPORT TAP: '
                   '${location.latitude}, ${location.longitude}',
                 );
                 FocusScope.of(context).unfocus();
                 ref.read(searchResultsVisibleProvider.notifier).hide();
+                ref.read(draftLocationProvider.notifier).setLocation(location);
+                final camera = _mapController.camera;
+                final visibleAreaCenter = _cameraCenterForDraft(location);
+                _mapController.move(visibleAreaCenter, camera.zoom);
 
-                showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  useSafeArea: true,
-                  builder: (_) => ReportBottomSheet(location: location),
-                );
+                try {
+                  await showModalBottomSheet<void>(
+                    context: context,
+                    isScrollControlled: true,
+                    useSafeArea: true,
+                    barrierColor: Colors.transparent,
+                    builder: (_) => ReportBottomSheet(location: location),
+                  );
+                } finally {
+                  if (mounted) {
+                    ref.read(draftLocationProvider.notifier).clear();
+                  }
+                }
               },
             ),
             children: [
@@ -207,6 +240,63 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen> {
                 },
                 loading: () => const SizedBox.shrink(),
                 error: (error, stack) => const SizedBox.shrink(),
+              ),
+
+              // draft report + submitted report markers
+              MarkerLayer(
+                markers: [
+                  if (draftLocation != null)
+                    Marker(
+                      point: draftLocation,
+                      width: 72,
+                      height: 64,
+                      child: const Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.add_location_alt,
+                            color: Colors.purple,
+                            size: 42,
+                          ),
+                          Text(
+                            'DRAFT',
+                            style: TextStyle(
+                              color: Colors.purple,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ...visibleReports.map(
+                    (report) => Marker(
+                      point: LatLng(
+                        report.location.latitude,
+                        report.location.longitude,
+                      ),
+                      width: 48,
+                      height: 48,
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          FocusScope.of(context).unfocus();
+                          showModalBottomSheet<void>(
+                            context: context,
+                            isScrollControlled: true,
+                            useSafeArea: true,
+                            builder: (_) =>
+                                ReportDetailBottomSheet(initialReport: report),
+                          );
+                        },
+                        child: Tooltip(
+                          message: report.category.replaceAll('_', ' '),
+                          child: reportMarkerIcon(report),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
