@@ -43,3 +43,26 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# AI agents / AI coding assistants
+.claude/
+.codex/
+.cursor/
+.windsurf/
+.continue/
+.aider/
+.roo/
+.kilocode/
+.cline/
+.gemini/
+.codeium/
+.qodo/
+
+# AI local configuration / cache
+.aider.chat.history.md
+.aider.input.history
+.aider.tags.cache.v*
+.cursorignore
+.cursorindexingignore
+.windsurfignore
+.continueignore
