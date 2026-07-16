@@ -66,5 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+
+	<!-- coba nambahin live location -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+    <string>Jaga needs your location to track your safe journey and detect route deviations.</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>Jaga needs your location to send automated SOS alerts if you go off-route.</string>
 </dict>
 </plist>
