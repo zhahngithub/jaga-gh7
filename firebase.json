@@ -1,1 +1,24 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"jaga-gh7","appId":"1:249367919150:android:7ec8da1b6080e79f003dbf","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"jaga-gh7","configurations":{"android":"1:249367919150:android:7ec8da1b6080e79f003dbf"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "jaga-gh7",
+          "appId": "1:249367919150:android:7ec8da1b6080e79f003dbf",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "jaga-gh7",
+          "configurations": {
+            "android": "1:249367919150:android:7ec8da1b6080e79f003dbf"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}

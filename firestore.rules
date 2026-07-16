@@ -1,0 +1,118 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    function validPhoneNumber(phoneNumber) {
+      return phoneNumber is string
+        && phoneNumber.matches('^\\+628[1-9][0-9]{7,10}$');
+    }
+
+    function validUserFields() {
+      return request.resource.data.keys().hasAll([
+          'displayName',
+          'email',
+          'phoneNumber',
+          'photoUrl',
+          'helperModeEnabled',
+          'communityAssistanceEnabled',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'displayName',
+          'email',
+          'phoneNumber',
+          'photoUrl',
+          'helperModeEnabled',
+          'communityAssistanceEnabled',
+          'createdAt',
+          'updatedAt'
+        ])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() >= 2
+        && request.resource.data.displayName.size() <= 40
+        && request.resource.data.email is string
+        && request.auth.token.email != null
+        && request.resource.data.email == request.auth.token.email
+        && validPhoneNumber(request.resource.data.phoneNumber)
+        && (
+          request.resource.data.photoUrl == null
+          || request.resource.data.photoUrl is string
+        )
+        && request.resource.data.helperModeEnabled is bool
+        && request.resource.data.communityAssistanceEnabled is bool;
+    }
+
+    function validTrustedContactFields() {
+      return request.resource.data.keys().hasAll([
+          'displayName',
+          'phoneNumber',
+          'contactUid',
+          'channel',
+          'status',
+          'createdAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'displayName',
+          'phoneNumber',
+          'contactUid',
+          'channel',
+          'status',
+          'createdAt'
+        ])
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() > 0
+        && validPhoneNumber(request.resource.data.phoneNumber)
+        && request.resource.data.contactUid == null
+        && request.resource.data.channel == 'sms'
+        && request.resource.data.status == 'accepted';
+    }
+
+    match /users/{uid} {
+      allow read: if isOwner(uid);
+
+      allow create: if isOwner(uid)
+        && validUserFields()
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time;
+
+      allow update: if isOwner(uid)
+        && validUserFields()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName',
+          'phoneNumber',
+          'photoUrl',
+          'helperModeEnabled',
+          'communityAssistanceEnabled',
+          'updatedAt'
+        ])
+        && request.resource.data.email == resource.data.email
+        && request.resource.data.createdAt == resource.data.createdAt
+        && request.resource.data.updatedAt == request.time;
+
+      allow delete: if false;
+
+      match /trustedContacts/{contactId} {
+        allow read: if isOwner(uid);
+
+        allow create: if isOwner(uid)
+          && validTrustedContactFields()
+          && request.resource.data.createdAt == request.time;
+
+        allow update: if isOwner(uid)
+          && validTrustedContactFields()
+          && request.resource.data.createdAt == resource.data.createdAt;
+
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
