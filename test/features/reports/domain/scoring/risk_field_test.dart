@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jaga/core/config/safety_constants.dart';
-import 'package:jaga/core/models/geo_coordinate.dart';
-import 'package:jaga/core/models/report.dart';
-import 'package:jaga/core/scoring/risk_field.dart';
+import 'package:jaga/core/constants/safety_constants.dart';
+import 'package:jaga/core/utils/geo_coordinate.dart';
+import 'package:jaga/features/reports/domain/models/safety_report.dart';
+import 'package:jaga/features/reports/domain/scoring/risk_field.dart';
 
 void main() {
   final evaluatedAt = DateTime.utc(2026, 7, 16, 12);

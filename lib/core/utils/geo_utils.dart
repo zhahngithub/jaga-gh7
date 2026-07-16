@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 
-import '../config/safety_constants.dart';
-import '../models/geo_coordinate.dart';
+import '../constants/safety_constants.dart';
+import 'geo_coordinate.dart';
 
 double distanceMeters(GeoCoordinate first, GeoCoordinate second) {
   final latitudeDelta = _toRadians(second.latitude - first.latitude);

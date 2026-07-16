@@ -1,6 +1,6 @@
-import '../config/safety_constants.dart';
-import '../models/geo_coordinate.dart';
-import 'geo_utils.dart';
+import '../../../core/constants/safety_constants.dart';
+import '../../../core/utils/geo_coordinate.dart';
+import '../../../core/utils/geo_utils.dart';
 
 List<GeoCoordinate> resampleRoute(
   List<GeoCoordinate> route, {

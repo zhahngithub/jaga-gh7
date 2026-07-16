@@ -1,5 +1,5 @@
-import '../config/safety_constants.dart';
-import 'geo_coordinate.dart';
+import '../../../../core/constants/safety_constants.dart';
+import '../../../../core/utils/geo_coordinate.dart';
 
 enum ReportStatus { active, confirmed, disputed, resolved, expired }
 

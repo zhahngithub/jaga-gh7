@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jaga/core/config/categories.dart';
+import 'package:jaga/features/reports/domain/models/report_category.dart';
 
 void main() {
   test('Dart category configuration mirrors shared categories JSON', () {

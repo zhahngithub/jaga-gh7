@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 
-import '../config/categories.dart';
-import '../config/safety_constants.dart';
-import '../models/geo_coordinate.dart';
-import '../models/report.dart';
-import 'geo_utils.dart';
+import '../../../../core/constants/safety_constants.dart';
+import '../../../../core/utils/geo_coordinate.dart';
+import '../../../../core/utils/geo_utils.dart';
+import '../models/report_category.dart';
+import '../models/safety_report.dart';
 
 double riskAt({
   required GeoCoordinate point,
