@@ -42,7 +42,7 @@ class SearchResultsVisibleNotifier extends Notifier<bool> {
     _debounceTimer = null;
   }
 
-  void resetLastSearchedQuery() => _lastSearchedQuery = null;
+  void resetLastSearchedQuery() => _lastSearchedQuery = '';
 
   void show() => state = true;
 
@@ -126,6 +126,20 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
     FocusScope.of(context).unfocus();
   }
 
+  void _clearSearch() {
+    _searchController.clear();
+
+    setState(() {
+      _searchResults = [];
+      _isLoading = false;
+    });
+
+    final searchController =
+        ref.read(searchResultsVisibleProvider.notifier);
+    searchController.resetLastSearchedQuery();
+    searchController.hide();
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -160,9 +174,30 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
               Expanded(
                 child: TextField(
                   controller: _searchController,
-                  decoration: const InputDecoration(
+                  textAlignVertical: TextAlignVertical.center,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
                     hintText: 'Cari tujuan...',
                     border: InputBorder.none,
+                    suffixIconConstraints: const BoxConstraints(
+                      minWidth: 0,
+                      minHeight: 0,
+                    ),
+                    suffixIcon: ValueListenableBuilder<TextEditingValue>(
+                      valueListenable: _searchController,
+                      builder: (context, value, child) {
+                        if (value.text.isEmpty) {
+                          return const SizedBox.shrink();
+                        }
+
+                        return IconButton(
+                          tooltip: 'Clear search',
+                          onPressed: _clearSearch,
+                          icon: const Icon(Icons.clear),
+                        );
+                      },
+                    ),
                   ),
                   onChanged: (query) {
                     final searchController =
