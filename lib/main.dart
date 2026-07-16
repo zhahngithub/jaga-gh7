@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'firebase_options.dart';
 import 'features/map/presentation/screens/main_safety_map_screen.dart';
 
@@ -14,7 +15,8 @@ Future<void> main() async {
   debugPrint('Project ID: ${firebaseApp.options.projectId}');
   debugPrint('Firebase App ID: ${firebaseApp.options.appId}');
   
-  runApp(const MainApp());
+  // runApp(const MainApp());
+  runApp(const ProviderScope(child: MainApp())); // pake provider riverpod buat state management
 }
 
 class MainApp extends StatelessWidget {
