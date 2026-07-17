@@ -1,0 +1,164 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
+class NotificationMessagingRepository {
+  NotificationMessagingRepository.firebase()
+    : _auth = FirebaseAuth.instance,
+      _firestore = FirebaseFirestore.instance,
+      _localNotifications = FlutterLocalNotificationsPlugin();
+
+  NotificationMessagingRepository(
+    this._auth,
+    this._firestore,
+    this._localNotifications,
+  );
+
+  static const String distressChannelId = 'jaga_distress_alerts';
+  static const String distressChannelName = 'Permintaan bantuan darurat';
+  static const String distressChannelDescription =
+      'Notifikasi permintaan bantuan dari kontak tepercaya Jaga.';
+
+  final FirebaseAuth _auth;
+  final FirebaseFirestore _firestore;
+  final FlutterLocalNotificationsPlugin _localNotifications;
+  final StreamController<Map<String, dynamic>> _localNotificationOpens =
+      StreamController<Map<String, dynamic>>.broadcast();
+
+  Stream<Map<String, dynamic>> get localNotificationOpens =>
+      _localNotificationOpens.stream;
+
+  Stream<String?> get signedInUidChanges =>
+      _auth.authStateChanges().map((user) => user?.uid);
+
+  String? get currentUid => _auth.currentUser?.uid;
+
+  Stream<bool> watchHelperMode(String uid) {
+    return _firestore
+        .collection('users')
+        .doc(uid)
+        .snapshots()
+        .map((snapshot) => snapshot.data()?['helperModeEnabled'] == true)
+        .distinct();
+  }
+
+  Stream<Map<String, dynamic>> watchNewDistressAlerts({
+    required String uid,
+    required DateTime after,
+  }) {
+    return _firestore
+        .collection('distressSessions')
+        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(after))
+        .snapshots()
+        .expand((snapshot) => snapshot.docChanges)
+        .where((change) {
+          if (change.type != DocumentChangeType.added) return false;
+          final data = change.doc.data();
+          if (data == null || data['status'] != 'active') return false;
+          if (data['senderUid'] == uid) return false;
+          final expiresAt = data['expiresAt'];
+          return expiresAt is! Timestamp ||
+              expiresAt.toDate().isAfter(DateTime.now());
+        })
+        .map((change) {
+          final data = change.doc.data()!;
+          return <String, dynamic>{
+            'type': 'distress_help_request',
+            'sessionId': change.doc.id,
+            'senderUid': data['senderUid'],
+            'senderDisplayName': data['senderDisplayName'],
+            'audience': 'nearby_helper',
+          };
+        });
+  }
+
+  Future<void> initializeLocalNotifications() async {
+    const initializationSettings = InitializationSettings(
+      android: AndroidInitializationSettings('@mipmap/ic_launcher'),
+      iOS: DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      ),
+    );
+    await _localNotifications.initialize(
+      settings: initializationSettings,
+      onDidReceiveNotificationResponse: (response) {
+        final data = _decodePayload(response.payload);
+        if (data != null) _localNotificationOpens.add(data);
+      },
+    );
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.createNotificationChannel(
+          const AndroidNotificationChannel(
+            distressChannelId,
+            distressChannelName,
+            description: distressChannelDescription,
+            importance: Importance.max,
+          ),
+        );
+  }
+
+  Future<void> requestPermission() async {
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >()
+        ?.requestNotificationsPermission();
+  }
+
+  Future<void> showLocalDistressAlert(Map<String, dynamic> data) async {
+    final senderDisplayName = data['senderDisplayName'] as String?;
+    final body = senderDisplayName == null || senderDisplayName.isEmpty
+        ? 'Seorang pengguna Jaga mengirim sinyal darurat.'
+        : '$senderDisplayName mengirim sinyal darurat. Ketuk untuk melihat lokasi.';
+    await _localNotifications.show(
+      id:
+          (data['sessionId'] as String?)?.hashCode ??
+          DateTime.now().millisecondsSinceEpoch,
+      title: 'Permintaan bantuan darurat',
+      body: body,
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          distressChannelId,
+          distressChannelName,
+          channelDescription: distressChannelDescription,
+          importance: Importance.max,
+          priority: Priority.high,
+          category: AndroidNotificationCategory.alarm,
+        ),
+        iOS: DarwinNotificationDetails(
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+      payload: jsonEncode(data),
+    );
+  }
+
+  Future<Map<String, dynamic>?> getInitialLocalData() async {
+    final details = await _localNotifications.getNotificationAppLaunchDetails();
+    if (details?.didNotificationLaunchApp != true) return null;
+    return _decodePayload(details?.notificationResponse?.payload);
+  }
+
+  Map<String, dynamic>? _decodePayload(String? payload) {
+    if (payload == null || payload.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(payload);
+      if (decoded is Map) return Map<String, dynamic>.from(decoded);
+    } on FormatException {
+      return null;
+    }
+    return null;
+  }
+
+  Future<void> dispose() => _localNotificationOpens.close();
+}

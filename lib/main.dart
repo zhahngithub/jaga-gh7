@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jaga/core/theme/app_theme.dart';
 import 'package:jaga/features/auth/presentation/screens/authentication_gate.dart';
+import 'package:jaga/features/notifications/application/notification_routing_controller.dart';
 import 'firebase_options.dart';
 
 Future<void> main() async {
@@ -22,8 +25,19 @@ Future<void> main() async {
   ); // pake provider riverpod buat state management
 }
 
-class MainApp extends StatelessWidget {
+class MainApp extends ConsumerStatefulWidget {
   const MainApp({super.key});
+
+  @override
+  ConsumerState<MainApp> createState() => _MainAppState();
+}
+
+class _MainAppState extends ConsumerState<MainApp> {
+  @override
+  void initState() {
+    super.initState();
+    unawaited(ref.read(notificationCoordinatorProvider.notifier).initialize());
+  }
 
   @override
   Widget build(BuildContext context) {

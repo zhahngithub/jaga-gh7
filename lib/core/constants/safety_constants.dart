@@ -12,7 +12,12 @@ abstract final class SafetyConstants {
   static const int locationWriteIntervalSeconds = 15;
   static const double locationWriteDistanceM = 50;
   static const int alertLocationWriteIntervalSeconds = 5;
+  static const double distressLocationWriteDistanceM = 3;
   static const double streamDistanceFilterM = 15;
+
+  // Notification registration.
+  static const int notificationRegistrationRetrySeconds = 2;
+  static const int notificationRegistrationAttempts = 5;
 
   // Scoring.
   static const double sampleIntervalM = 25;
