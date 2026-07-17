@@ -132,10 +132,11 @@ class _JagaBrand extends StatelessWidget {
               ),
             ],
           ),
-          child: const Icon(
-            Icons.shield_rounded,
-            color: Colors.white,
-            size: 25,
+          clipBehavior: Clip.antiAlias,
+          child: Image.asset(
+            'assets/branding/jaga.png',
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
           ),
         ),
         const SizedBox(width: 10),
