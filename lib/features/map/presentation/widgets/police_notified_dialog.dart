@@ -25,7 +25,7 @@ class PoliceNotifiedDialog extends ConsumerWidget {
             const SizedBox(height: 16),
 
             Text(
-              "Menginformasikan polisi terdekat",
+              "Menginformasikan polisi terdekat!",
               style: Theme.of(context).textTheme.titleLarge,
               textAlign: TextAlign.center,
             ),

@@ -6,6 +6,7 @@ import 'package:jaga/features/map/application/emergency_service.dart';
 import 'package:jaga/features/map/presentation/widgets/emergency_notified_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/help_request_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/nearby_notified_dialog.dart';
+import 'package:jaga/features/map/presentation/widgets/police_notified_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/safety_check_dialog.dart';
 import 'package:jaga/features/reports/application/report_controller.dart';
 import 'package:jaga/features/reports/data/models/report.dart';
@@ -117,6 +118,18 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
 
       // PLACEHOLDER, nanti bisa disesuaikan kondisi lokasi pengguna
       builder: (context) => const HelpRequestDialog(distanceInMeters: 10),
+    );
+  }
+
+  void _showPoliceNotifiedPopup() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return const PoliceNotifiedDialog(
+          policeStationName: "Polda Metro Jaya",
+        );
+      },
     );
   }
 
@@ -595,7 +608,43 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                       ref.read(emergencyProvider.notifier).triggerWarning();
                     },
                     icon: const Icon(Icons.bug_report),
-                    label: const Text("DEBUG: Test Popup"),
+                    label: const Text("DEBUG: Test Danger Popup"),
+                  ),
+
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      _showNearbyNotifiedPopup();
+                    },
+                    icon: const Icon(Icons.bug_report),
+                    label: const Text("DEBUG: Test Nearby Notified Popup"),
+                  ),
+
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      _showHelpRequestPopup();
+                    },
+                    icon: const Icon(Icons.bug_report),
+                    label: const Text("DEBUG: Test Help Notified Popup"),
+                  ),
+
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () {
+                      _showPoliceNotifiedPopup();
+                    },
+                    icon: const Icon(Icons.bug_report),
+                    label: const Text("DEBUG: Test Police Notified Popup"),
                   ),
 
                   const SizedBox(height: 12), // kasi jarak buat tombol rute
