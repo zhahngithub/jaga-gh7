@@ -10,7 +10,9 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the distress state for loading indicators
     final distressState = ref.watch(distressControllerProvider);
+    final isLoading = distressState.isLoading;
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
@@ -54,64 +56,70 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: distressState.isLoading
+                onPressed: isLoading
                     ? null
                     : () async {
-                        final started = await ref
-                            .read(distressControllerProvider.notifier)
-                            .startTrustedContactDistress();
-                        if (!context.mounted || !started) return;
-                        Navigator.of(context).pop();
-                      },
-                child: distressState.isLoading
+                  final started = await ref
+                      .read(distressControllerProvider.notifier)
+                      .startTrustedContactDistress();
+
+                  if (!context.mounted || !started) return;
+                  Navigator.of(context).pop();
+                },
+                child: isLoading
                     ? const SizedBox.square(
-                        dimension: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
+                  dimension: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
                     : const Text("Mengerti"),
               ),
             ),
             const SizedBox(height: 12),
+
             // Cancel Button
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: BorderSide(color: Colors.grey),
+                  side: const BorderSide(color: Colors.grey),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: distressState.isLoading
+                onPressed: isLoading
                     ? null
                     : () {
-                        showDialog(
-                          context: context,
-                          barrierDismissible: false,
-                          builder: (pinContext) => PinVerificationDialog(
-                            onSuccess: () {
-                              Navigator.of(pinContext).pop();
-                              Navigator.of(context).pop();
-                              ref.read(emergencyProvider.notifier).markAsSafe();
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    "Status darurat berhasil dibatalkan.",
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  backgroundColor: AppColors.primary,
-                                ),
-                              );
-                            },
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (pinContext) => PinVerificationDialog(
+                      onSuccess: () {
+                        // Close the PIN Dialog
+                        Navigator.of(pinContext).pop();
+                        // Close the Emergency Dialog
+                        Navigator.of(context).pop();
+
+                        ref.read(emergencyProvider.notifier).markAsSafe();
+
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "Status darurat berhasil dibatalkan.",
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            backgroundColor: AppColors.primary,
                           ),
                         );
                       },
+                    ),
+                  );
+                },
                 child: Text(
                   "Batalkan, aku aman.",
                   style: Theme.of(
