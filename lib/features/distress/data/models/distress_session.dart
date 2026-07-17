@@ -8,6 +8,7 @@ class DistressSession {
     required this.id,
     required this.senderUid,
     required this.recipientUids,
+    this.recipientPhoneNumbers = const <String>[],
     required this.senderDisplayName,
     required this.audience,
     required this.status,
@@ -19,6 +20,7 @@ class DistressSession {
   final String id;
   final String senderUid;
   final List<String> recipientUids;
+  final List<String> recipientPhoneNumbers;
   final String senderDisplayName;
   final String audience;
   final DistressStatus status;
@@ -57,6 +59,10 @@ class DistressSession {
       recipientUids: (data['recipientUids'] as List<Object?>? ?? const [])
           .whereType<String>()
           .toList(growable: false),
+      recipientPhoneNumbers:
+          (data['recipientPhoneNumbers'] as List<Object?>? ?? const [])
+              .whereType<String>()
+              .toList(growable: false),
       senderDisplayName:
           data['senderDisplayName'] as String? ?? 'Pengguna Jaga',
       audience: data['audience'] as String? ?? 'trusted_contact',

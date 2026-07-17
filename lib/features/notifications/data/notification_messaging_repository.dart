@@ -62,15 +62,20 @@ class NotificationMessagingRepository {
   Stream<Map<String, dynamic>> watchNewTrustedContactAlerts({
     required String uid,
     required DateTime after,
-  }) {
-    return _watchNewDistressAlerts(
+  }) async* {
+    final userSnapshot = await _firestore.collection('users').doc(uid).get();
+    final phoneNumber = (userSnapshot.data()?['phoneNumber'] as String?)
+        ?.trim();
+    if (phoneNumber == null || phoneNumber.isEmpty) return;
+
+    yield* _watchNewDistressAlerts(
       query: _firestore
           .collection('distressSessions')
-          .where('audience', isEqualTo: 'trusted_contact')
-          .where('recipientUids', arrayContains: uid),
+          .where('recipientPhoneNumbers', arrayContains: phoneNumber),
       uid: uid,
       after: after,
       audience: 'trusted_contact',
+      trustedRecipientPhone: phoneNumber,
     );
   }
 
@@ -79,6 +84,7 @@ class NotificationMessagingRepository {
     required String uid,
     required DateTime after,
     required String audience,
+    String? trustedRecipientPhone,
   }) {
     return query
         .snapshots()
@@ -94,8 +100,12 @@ class NotificationMessagingRepository {
             return false;
           }
           if (audience == 'trusted_contact') {
-            final recipients = data['recipientUids'];
-            if (recipients is! List || !recipients.contains(uid)) return false;
+            final recipients = data['recipientPhoneNumbers'];
+            if (trustedRecipientPhone == null ||
+                recipients is! List ||
+                !recipients.contains(trustedRecipientPhone)) {
+              return false;
+            }
           }
           final expiresAt = data['expiresAt'];
           return expiresAt is! Timestamp ||

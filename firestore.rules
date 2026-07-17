@@ -121,6 +121,15 @@ service cloud.firestore {
             && request.auth.uid in resource.data.recipientUids
           )
           || (
+            resource.data.recipientPhoneNumbers is list
+            && exists(
+              /databases/$(database)/documents/users/$(request.auth.uid)
+            )
+            && get(
+              /databases/$(database)/documents/users/$(request.auth.uid)
+            ).data.phoneNumber in resource.data.recipientPhoneNumbers
+          )
+          || (
             resource.data.audience == 'nearby_helper'
             && exists(/databases/$(database)/documents/users/$(request.auth.uid))
             && get(
@@ -133,6 +142,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasAll([
           'senderUid',
           'recipientUids',
+          'recipientPhoneNumbers',
           'senderDisplayName',
           'audience',
           'status',
@@ -144,6 +154,7 @@ service cloud.firestore {
         && request.resource.data.keys().hasOnly([
           'senderUid',
           'recipientUids',
+          'recipientPhoneNumbers',
           'senderDisplayName',
           'audience',
           'status',
@@ -155,6 +166,8 @@ service cloud.firestore {
         && request.resource.data.senderUid == request.auth.uid
         && request.resource.data.recipientUids is list
         && request.resource.data.recipientUids.size() <= 20
+        && request.resource.data.recipientPhoneNumbers is list
+        && request.resource.data.recipientPhoneNumbers.size() <= 20
         && request.resource.data.senderDisplayName is string
         && request.resource.data.senderDisplayName.size() > 0
         && request.resource.data.senderDisplayName.size() <= 80
@@ -166,13 +179,12 @@ service cloud.firestore {
           (
             request.resource.data.audience == 'nearby_helper'
             && request.resource.data.recipientUids.size() == 0
+            && request.resource.data.recipientPhoneNumbers.size() == 0
           )
           || (
             request.resource.data.audience == 'trusted_contact'
-            && request.resource.data.recipientUids.size() > 0
-            && !request.resource.data.recipientUids.hasAny([
-              request.auth.uid
-            ])
+            && request.resource.data.recipientUids.size() == 0
+            && request.resource.data.recipientPhoneNumbers.size() > 0
           )
         )
         && request.resource.data.status == 'active'

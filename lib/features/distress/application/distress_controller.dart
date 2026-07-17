@@ -137,19 +137,19 @@ class DistressController extends Notifier<DistressState> {
       final recipients = await repository.loadTrustedContactRecipients();
       if (recipients.isEmpty) {
         throw const DistressDataException(
-          'Tidak ada kontak darurat yang terhubung dengan akun Jaga.',
+          'Tidak ada nomor telepon kontak darurat yang valid.',
         );
       }
       final result = await repository.startTrustedContactSession(
         location: location,
-        recipientUids: recipients.uids,
+        recipientPhoneNumbers: recipients.phoneNumbers,
         recipientDisplayNames: recipients.displayNames,
       );
       _lastSentLocation = location;
       state = DistressState(
         activeSessionId: result.sessionId,
         feedbackMessage:
-            'Lokasi langsung dikirim ke ${result.recipientCount} kontak darurat.',
+            'Lokasi langsung ditujukan ke ${result.recipientCount} kontak darurat.',
       );
       _startLocationUpdater();
       return true;

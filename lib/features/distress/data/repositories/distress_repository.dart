@@ -18,14 +18,14 @@ class DistressStartResult {
 
 class TrustedContactRecipients {
   const TrustedContactRecipients({
-    required this.uids,
+    required this.phoneNumbers,
     required this.displayNames,
   });
 
-  final List<String> uids;
+  final List<String> phoneNumbers;
   final List<String> displayNames;
 
-  bool get isEmpty => uids.isEmpty;
+  bool get isEmpty => phoneNumbers.isEmpty;
 }
 
 class DistressRepository {
@@ -58,29 +58,34 @@ class DistressRepository {
           .doc(user.uid)
           .collection('trustedContacts')
           .get();
-      final recipientsByUid = <String, String>{};
+      final senderSnapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      final senderPhone = (senderSnapshot.data()?['phoneNumber'] as String?)
+          ?.trim();
+      final recipientsByPhone = <String, String>{};
       for (final document in snapshot.docs) {
         final data = document.data();
-        if (data['status'] != 'accepted' || data['channel'] != 'app') {
-          continue;
-        }
-        final contactUid = (data['contactUid'] as String?)?.trim();
-        if (contactUid == null ||
-            contactUid.isEmpty ||
-            contactUid == user.uid) {
+        if (data['status'] != 'accepted') continue;
+
+        final phoneNumber = (data['phoneNumber'] as String?)?.trim();
+        if (phoneNumber == null ||
+            phoneNumber.isEmpty ||
+            phoneNumber == senderPhone) {
           continue;
         }
         final displayName = (data['displayName'] as String?)?.trim();
-        recipientsByUid.putIfAbsent(
-          contactUid,
+        recipientsByPhone.putIfAbsent(
+          phoneNumber,
           () => displayName == null || displayName.isEmpty
               ? 'Kontak darurat'
               : displayName,
         );
       }
       return TrustedContactRecipients(
-        uids: List<String>.unmodifiable(recipientsByUid.keys),
-        displayNames: List<String>.unmodifiable(recipientsByUid.values),
+        phoneNumbers: List<String>.unmodifiable(recipientsByPhone.keys),
+        displayNames: List<String>.unmodifiable(recipientsByPhone.values),
       );
     } on FirebaseException catch (error) {
       throw DistressDataException(_messageForFirestoreError(error));
@@ -112,25 +117,26 @@ class DistressRepository {
 
   Future<DistressStartResult> startTrustedContactSession({
     required LatLng location,
-    required List<String> recipientUids,
+    required List<String> recipientPhoneNumbers,
     required List<String> recipientDisplayNames,
   }) {
     final user = _requireUser();
-    final uniqueRecipients = recipientUids
-        .map((uid) => uid.trim())
-        .where((uid) => uid.isNotEmpty && uid != user.uid)
+    final uniqueRecipients = recipientPhoneNumbers
+        .map((phoneNumber) => phoneNumber.trim())
+        .where((phoneNumber) => phoneNumber.isNotEmpty)
         .toSet()
         .toList(growable: false);
     if (uniqueRecipients.isEmpty) {
       throw const DistressDataException(
-        'Tidak ada kontak darurat yang terhubung dengan akun Jaga.',
+        'Tidak ada nomor telepon kontak darurat yang valid.',
       );
     }
     return _createSession(
       user: user,
       location: location,
       audience: 'trusted_contact',
-      recipientUids: uniqueRecipients,
+      recipientUids: const <String>[],
+      recipientPhoneNumbers: uniqueRecipients,
       recipientDisplayNames: recipientDisplayNames,
     );
   }
@@ -191,6 +197,7 @@ class DistressRepository {
     required LatLng location,
     required String audience,
     required List<String> recipientUids,
+    List<String> recipientPhoneNumbers = const <String>[],
     required List<String> recipientDisplayNames,
   }) async {
     try {
@@ -204,6 +211,7 @@ class DistressRepository {
       await sessionReference.set(<String, Object>{
         'senderUid': user.uid,
         'recipientUids': recipientUids,
+        'recipientPhoneNumbers': recipientPhoneNumbers,
         'senderDisplayName': senderDisplayName,
         'audience': audience,
         'status': 'active',
@@ -216,7 +224,9 @@ class DistressRepository {
       });
       return DistressStartResult(
         sessionId: sessionReference.id,
-        recipientCount: recipientUids.length,
+        recipientCount: audience == 'trusted_contact'
+            ? recipientPhoneNumbers.length
+            : recipientUids.length,
         recipientDisplayNames: recipientDisplayNames,
       );
     } on FirebaseException catch (error) {
