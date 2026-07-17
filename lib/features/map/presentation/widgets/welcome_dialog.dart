@@ -9,33 +9,30 @@ class WelcomeDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16.0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       child: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.shield_outlined, size: 80, color: Colors.blue), 
+            const Icon(Icons.shield_outlined, size: 80, color: Colors.blue),
             const SizedBox(height: 16),
             Text(
               "Hai, $username!",
-              style: const TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(context).textTheme.titleLarge,
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 1),
-            const Text(
+            const SizedBox(height: 6),
+            Text(
               "Yuk capai destinasimu dengan aman!",
-              style: TextStyle(fontSize: 16, color: Colors.grey),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
             SizedBox(
-              width: double.infinity, 
+              width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
@@ -46,9 +43,9 @@ class WelcomeDialog extends StatelessWidget {
                   ),
                 ),
                 onPressed: () {
-                  Navigator.of(context).pop(); 
+                  Navigator.of(context).pop();
                 },
-                child: const Text("Mulai", style: TextStyle(fontSize: 16)),
+                child: const Text("Mulai"),
               ),
             ),
           ],

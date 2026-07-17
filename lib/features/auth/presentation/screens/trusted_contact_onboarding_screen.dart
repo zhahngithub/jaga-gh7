@@ -81,15 +81,20 @@ class _TrustedContactOnboardingScreenState
                 color: const Color(0xFFEAF6FF),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Row(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline_rounded, color: Color(0xFF006BCB)),
-                  SizedBox(width: 10),
+                  const Icon(
+                    Icons.info_outline_rounded,
+                    color: Color(0xFF006BCB),
+                  ),
+                  const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'Kontak hanya disimpan sebagai kontak tepercaya. Jaga tidak mengirim SMS pada tahap ini.',
-                      style: TextStyle(color: Color(0xFF07558F), height: 1.35),
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: const Color(0xFF07558F),
+                      ),
                     ),
                   ),
                 ],

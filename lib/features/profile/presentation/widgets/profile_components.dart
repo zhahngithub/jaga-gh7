@@ -49,10 +49,9 @@ class ProfileSectionCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: AppColors.textDark,
-                    fontWeight: FontWeight.w800,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(color: AppColors.textDark),
                 ),
               ),
               ?action,
@@ -139,10 +138,9 @@ class ProfileMessage extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: color,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),

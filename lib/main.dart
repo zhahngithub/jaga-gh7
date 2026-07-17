@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jaga/core/theme/app_colors.dart';
+import 'package:jaga/core/theme/app_theme.dart';
 import 'package:jaga/features/auth/presentation/screens/authentication_gate.dart';
 import 'firebase_options.dart';
 
@@ -29,20 +29,7 @@ class MainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: AppColors.primary,
-          primary: AppColors.primary,
-        ),
-        scaffoldBackgroundColor: AppColors.background,
-        filledButtonTheme: FilledButtonThemeData(
-          style: FilledButton.styleFrom(
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white,
-          ),
-        ),
-      ),
+      theme: AppTheme.light,
       title: 'Jaga',
       home: const AuthenticationGate(),
     );

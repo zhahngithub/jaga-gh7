@@ -128,9 +128,7 @@ class _GateError extends StatelessWidget {
                       Text(
                         'Jaga belum dapat memuat akunmu',
                         textAlign: TextAlign.center,
-                        style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                        style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 10),
                       const Text(

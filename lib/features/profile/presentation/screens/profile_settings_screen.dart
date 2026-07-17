@@ -25,10 +25,7 @@ class ProfileSettingsScreen extends ConsumerWidget {
       appBar: AppBar(
         backgroundColor: const Color(0xFFEAF6FF),
         surfaceTintColor: Colors.transparent,
-        title: const Text(
-          'Profil & Pengaturan',
-          style: TextStyle(fontWeight: FontWeight.w800),
-        ),
+        title: const Text('Profil & Pengaturan'),
       ),
       body: SafeArea(
         top: false,
@@ -479,10 +476,9 @@ class _ProfileHeader extends StatelessWidget {
             backgroundColor: Colors.white,
             child: Text(
               _initials,
-              style: const TextStyle(
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: AppColors.primary,
-                fontSize: 23,
-                fontWeight: FontWeight.w900,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),
@@ -497,7 +493,7 @@ class _ProfileHeader extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: Colors.white,
-                    fontWeight: FontWeight.w900,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(height: 5),
@@ -505,7 +501,9 @@ class _ProfileHeader extends StatelessWidget {
                   profile.email,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Color(0xDFFFFFFF)),
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: const Color(0xDFFFFFFF),
+                  ),
                 ),
               ],
             ),
@@ -540,11 +538,18 @@ class _PreferenceRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
+              Text(
+                title,
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+              ),
               const SizedBox(height: 5),
               Text(
                 description,
-                style: const TextStyle(color: AppColors.textMuted, height: 1.4),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
               ),
             ],
           ),
@@ -602,10 +607,9 @@ class _ContactRow extends StatelessWidget {
               contact.displayName.isEmpty
                   ? '?'
                   : contact.displayName.substring(0, 1).toUpperCase(),
-              style: const TextStyle(
-                color: AppColors.primary,
-                fontWeight: FontWeight.w800,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.labelLarge?.copyWith(color: AppColors.primary),
             ),
           ),
           const SizedBox(width: 12),
@@ -617,12 +621,16 @@ class _ContactRow extends StatelessWidget {
                   contact.displayName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 3),
                 Text(
                   contact.phoneNumber,
-                  style: const TextStyle(color: AppColors.textMuted),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
                 ),
               ],
             ),

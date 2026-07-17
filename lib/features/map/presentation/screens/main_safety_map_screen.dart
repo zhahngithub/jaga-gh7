@@ -546,9 +546,10 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                                     widget.displayName,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelLarge
+                                        ?.copyWith(fontWeight: FontWeight.w700),
                                   ),
                                 ),
                                 const PopupMenuDivider(),

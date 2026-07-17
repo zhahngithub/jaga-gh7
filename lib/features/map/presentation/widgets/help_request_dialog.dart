@@ -4,43 +4,32 @@ import 'package:jaga/core/theme/app_colors.dart';
 class HelpRequestDialog extends StatelessWidget {
   final int distanceInMeters;
 
-  const HelpRequestDialog({
-    super.key,
-    required this.distanceInMeters,
-  });
+  const HelpRequestDialog({super.key, required this.distanceInMeters});
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16.0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       child: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.sos_rounded, size: 80, color: AppColors.primary), 
+            const Icon(Icons.sos_rounded, size: 80, color: AppColors.primary),
             const SizedBox(height: 16),
-            
-            const Text(
-              "Seseorang membutuhkan bantuanmu!", 
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                height: 1.1,
-              ),
+
+            Text(
+              "Seseorang membutuhkan bantuanmu!",
+              style: Theme.of(context).textTheme.titleLarge,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            
+
             Text(
               "Seorang pengguna $distanceInMeters meter dari kamu sedang dalam bahaya.",
-              style: const TextStyle(
-                fontSize: 16, 
-                color: Colors.grey,
-                height: 1.2,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
@@ -50,7 +39,7 @@ class HelpRequestDialog extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary, 
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
@@ -62,10 +51,7 @@ class HelpRequestDialog extends StatelessWidget {
                   // TODO: Give the user in danger location
                   print("Opening victim's location...");
                 },
-                child: const Text(
-                  "Lihat Lokasi",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                child: const Text("Lihat Lokasi"),
               ),
             ),
             const SizedBox(height: 12),
@@ -84,13 +70,11 @@ class HelpRequestDialog extends StatelessWidget {
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
-                child: const Text(
+                child: Text(
                   "Tutup",
-                  style: TextStyle(
-                    fontSize: 16, 
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey, 
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(color: Colors.grey),
                 ),
               ),
             ),

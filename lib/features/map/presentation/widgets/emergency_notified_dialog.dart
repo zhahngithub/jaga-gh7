@@ -9,36 +9,31 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16.0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       child: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-
-            const Icon(Icons.phone_in_talk_rounded, size: 80, color: AppColors.primary), 
+            const Icon(
+              Icons.phone_in_talk_rounded,
+              size: 80,
+              color: AppColors.primary,
+            ),
             const SizedBox(height: 16),
-            
-            const Text(
+
+            Text(
               "Mengabari kontak darurat!",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                height: 1.1,
-              ),
+              style: Theme.of(context).textTheme.titleLarge,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
-            
-            const Text(
+
+            Text(
               "Kami telah mengirim notifikasi dan live location kamu ke kontak darurat.",
-              style: TextStyle(
-                fontSize: 16, 
-                color: Colors.grey,
-                height: 1.2,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
@@ -48,7 +43,7 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary, 
+                  backgroundColor: AppColors.primary,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
@@ -58,10 +53,7 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
-                child: const Text(
-                  "Mengerti", 
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                child: const Text("Mengerti"),
               ),
             ),
             const SizedBox(height: 12),
@@ -81,18 +73,19 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
                   Navigator.of(context).pop();
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
-                      content: Text("Status darurat dibatalkan.", style: TextStyle(fontWeight: FontWeight.bold),),
+                      content: Text(
+                        "Status darurat dibatalkan.",
+                        style: TextStyle(fontWeight: FontWeight.bold),
+                      ),
                       backgroundColor: Colors.red,
                     ),
                   );
                 },
                 child: Text(
-                  "Batalkan, aku aman.", 
-                  style: TextStyle(
-                    fontSize: 16, 
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey, 
-                  ),
+                  "Batalkan, aku aman.",
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(color: Colors.grey),
                 ),
               ),
             ),

@@ -6,8 +6,8 @@ import '../../application/geocoding_service.dart';
 
 final searchResultsVisibleProvider =
     NotifierProvider<SearchResultsVisibleNotifier, bool>(
-  SearchResultsVisibleNotifier.new,
-);
+      SearchResultsVisibleNotifier.new,
+    );
 
 class SearchResultsVisibleNotifier extends Notifier<bool> {
   Timer? _debounceTimer;
@@ -56,13 +56,14 @@ class DestinationSearchBar extends ConsumerStatefulWidget {
   const DestinationSearchBar({super.key});
 
   @override
-  ConsumerState<DestinationSearchBar> createState() => _DestinationSearchBarState();
+  ConsumerState<DestinationSearchBar> createState() =>
+      _DestinationSearchBarState();
 }
 
 class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
   final TextEditingController _searchController = TextEditingController();
   bool _isLoading = false;
-  
+
   // nyimpen hasil search
   List<LocationResult> _searchResults = [];
 
@@ -71,8 +72,7 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
     if (!mounted) return;
 
     final normalizedQuery = query.trim();
-    final searchController =
-        ref.read(searchResultsVisibleProvider.notifier);
+    final searchController = ref.read(searchResultsVisibleProvider.notifier);
 
     // kalau kosong reset
     if (normalizedQuery.isEmpty) {
@@ -87,12 +87,11 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
 
     setState(() {
       _isLoading = true;
-      _searchResults = []; 
+      _searchResults = [];
     });
 
     // cari top 5
-    final results =
-        await GeocodingService.searchDestinations(normalizedQuery);
+    final results = await GeocodingService.searchDestinations(normalizedQuery);
 
     if (!mounted) return;
 
@@ -102,9 +101,9 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
     });
 
     if (results.isEmpty && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Lokasi tidak ditemukan')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Lokasi tidak ditemukan')));
     }
   }
 
@@ -112,16 +111,16 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
   void _selectLocation(LocationResult result) {
     // update state provider ke koordinat ini
     ref.read(destinationProvider.notifier).updateLocation(result.coordinates);
-    
+
     // update text di search bar ambil nama depan aja
-    _searchController.text = result.displayName.split(',')[0]; 
-    
+    _searchController.text = result.displayName.split(',')[0];
+
     // tutup dropdown
     setState(() {
       _searchResults = [];
     });
     ref.read(searchResultsVisibleProvider.notifier).hide();
-    
+
     // tutup keyboard
     FocusScope.of(context).unfocus();
   }
@@ -134,8 +133,7 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
       _isLoading = false;
     });
 
-    final searchController =
-        ref.read(searchResultsVisibleProvider.notifier);
+    final searchController = ref.read(searchResultsVisibleProvider.notifier);
     searchController.resetLastSearchedQuery();
     searchController.hide();
   }
@@ -200,8 +198,9 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
                     ),
                   ),
                   onChanged: (query) {
-                    final searchController =
-                        ref.read(searchResultsVisibleProvider.notifier);
+                    final searchController = ref.read(
+                      searchResultsVisibleProvider.notifier,
+                    );
 
                     if (query.trim().isEmpty) {
                       setState(() => _searchResults = []);
@@ -229,7 +228,7 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
             ],
           ),
         ),
-        
+
         // dropdown result list
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 250),
@@ -272,7 +271,7 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
                             result.displayName,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 14),
+                            style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           onTap: () => _selectLocation(result),
                         );
@@ -280,10 +279,8 @@ class _DestinationSearchBarState extends ConsumerState<DestinationSearchBar> {
                     ),
                   ),
                 )
-              : const SizedBox.shrink(
-                  key: ValueKey('search-results-hidden'),
-                ),
-          ),
+              : const SizedBox.shrink(key: ValueKey('search-results-hidden')),
+        ),
       ],
     );
   }

@@ -75,14 +75,7 @@ class AuthPrimaryButton extends StatelessWidget {
                     strokeWidth: 2.4,
                   ),
                 )
-              : Text(
-                  label,
-                  key: const ValueKey('label'),
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
+              : Text(label, key: const ValueKey('label')),
         ),
       ),
     );
@@ -132,10 +125,9 @@ class RequestMessageContainer extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: color,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),

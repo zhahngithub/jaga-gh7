@@ -55,18 +55,13 @@ class AuthPageScaffold extends StatelessWidget {
                       Text(
                         title,
                         style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(
-                              color: AppColors.textDark,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: -0.8,
-                            ),
+                            ?.copyWith(color: AppColors.textDark),
                       ),
                       const SizedBox(height: 10),
                       Text(
                         subtitle,
                         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                           color: AppColors.textMuted,
-                          height: 1.45,
                         ),
                       ),
                       const SizedBox(height: 26),
