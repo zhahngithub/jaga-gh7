@@ -127,9 +127,14 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     showDialog(
       context: context,
       barrierDismissible: false,
-
-      // PLACEHOLDER, nanti bisa disesuaikan kondisi lokasi pengguna
-      builder: (context) => const HelpRequestDialog(distanceInMeters: 10),
+      builder: (context) => HelpRequestDialog(
+        //TODO: this is place holder, maybe can implement count
+        distanceInMeters: 10,
+        onSeeLocation: () {
+          Navigator.of(context).popUntil((route) => route.isFirst); 
+          ref.read(notificationNavigationProvider.notifier).activatePendingSession();
+        },
+      ),
     );
   }
 
@@ -443,7 +448,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     ) {
       if (next.pendingSessionId != null &&
           next.pendingSessionId != previous?.pendingSessionId) {
-        _schedulePendingNotificationNavigation();
+        _showHelpRequestPopup();
       }
     });
 
@@ -878,7 +883,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                       _showHelpRequestPopup();
                     },
                     icon: const Icon(Icons.bug_report),
-                    label: const Text("DEBUG: Test Help Notified Popup"),
+                    label: const Text("DEBUG: Test Help Needed Notified Popup"),
                   ),
 
                   ElevatedButton.icon(
