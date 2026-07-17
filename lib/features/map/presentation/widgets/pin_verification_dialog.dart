@@ -24,7 +24,6 @@ class _PinVerificationDialogState extends State<PinVerificationDialog> {
       setState(() {
         _errorMessage = "PIN salah.";
         _pinController.clear();
-        Navigator.of(context).pop();
       });
     }
   }
@@ -42,7 +41,7 @@ class _PinVerificationDialogState extends State<PinVerificationDialog> {
         borderRadius: BorderRadius.circular(16.0),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(28.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
