@@ -1146,16 +1146,91 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // fokus ke marker user
-          final currentPosition = ref.read(liveLocationProvider).value;
-          if (currentPosition != null) {
-            _mapController.move(currentPosition, 15.0);
-          }
-        },
-        backgroundColor: Colors.white,
-        child: const Icon(Icons.my_location, color: Colors.blueAccent),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // 1. TOMBOL BATALKAN RUTE (Hanya muncul jika ada tujuan)
+          if (ref.watch(destinationProvider) != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: FloatingActionButton.extended(
+                heroTag: "btn_cancel_route",
+                onPressed: () {
+                  // Hapus tujuan dan garis rute dari state
+                  ref.invalidate(destinationProvider); 
+                  ref.read(routeProvider.notifier).clearRoutes();
+                },
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black87,
+                icon: const Icon(Icons.close_rounded, color: Colors.red),
+                label: const Text("Batalkan Rute"),
+              ),
+            ),
+
+          // 2. TOMBOL SOS DARURAT (Dengan verifikasi PIN saat membatalkan)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12.0),
+            child: FloatingActionButton.extended(
+              heroTag: "btn_sos",
+              onPressed: distressState.isLoading
+                  ? null
+                  : () async {
+                      // Kalau lagi aktif, minta PIN buat matiin
+                      if (distressState.isActive) {
+                        final isVerified = await showPinVerificationDialog(
+                          context, 
+                          reason: 'membatalkan status darurat'
+                        );
+                        
+                        if (isVerified) {
+                          await ref.read(distressControllerProvider.notifier).stop();
+                        }
+                        return;
+                      }
+
+                      // Kalau lagi mati, nyalain SOS
+                      final currentLocation = ref.read(liveLocationProvider).value;
+                      if (currentLocation == null) {
+                        _showDistressMessage(
+                          _locationUnavailableMessage(ref.read(liveLocationProvider)),
+                          isError: true,
+                        );
+                        return;
+                      }
+                      
+                      await ref.read(distressControllerProvider.notifier).start(currentLocation);
+                    },
+              backgroundColor: distressState.isActive ? Colors.grey : Colors.red,
+              foregroundColor: Colors.white,
+              elevation: 4,
+              icon: distressState.isLoading
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.sos_rounded, size: 28),
+              label: Text(
+                distressState.isActive ? "HENTIKAN SOS" : "DARURAT",
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+          ),
+
+          // 3. TOMBOL MY LOCATION (Kembali ke titik GPS)
+          FloatingActionButton(
+            heroTag: "btn_location",
+            onPressed: () {
+              final currentPosition = ref.read(liveLocationProvider).value;
+              if (currentPosition != null) {
+                _mapController.move(currentPosition, 15.0);
+              }
+            },
+            backgroundColor: Colors.white,
+            elevation: 4,
+            child: const Icon(Icons.my_location, color: Colors.blueAccent),
+          ),
+        ],
       ),
     );
   }
