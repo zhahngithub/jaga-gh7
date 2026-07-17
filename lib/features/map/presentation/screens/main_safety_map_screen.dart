@@ -372,6 +372,26 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                 ],
               ),
 
+              // lingkaran tiap marker
+              CircleLayer(
+                circles: visibleReports
+                    // Only draw circles for hazard reports (ignore police/cctv)
+                    .where((report) => report.reportType != 'protective')
+                    .map((report) {
+                  return CircleMarker(
+                    point: LatLng(
+                      report.location.latitude,
+                      report.location.longitude,
+                    ),
+                    color: Colors.red.withOpacity(0.2), // Transparent red fill
+                    borderColor: Colors.redAccent, // Solid red border
+                    borderStrokeWidth: 2,
+                    useRadiusInMeter: true,
+                    radius: 100.0, // 50 meter radius
+                  );
+                }).toList(),
+              ),
+
               // kalau ada data location, draw marker
               locationAsyncValue.when(
                 data: (currentPosition) {
