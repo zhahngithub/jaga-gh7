@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jaga/core/theme/app_colors.dart';
 import 'package:jaga/features/map/application/emergency_service.dart';
+import 'package:jaga/features/map/presentation/widgets/pin_verification_dialog.dart';
 
 class EmergencyNotifiedDialog extends ConsumerWidget {
   const EmergencyNotifiedDialog({super.key});
@@ -33,7 +34,7 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
               "Kami telah mengirim notifikasi dan live location kamu ke kontak darurat.",
               style: Theme.of(
                 context,
-              ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
@@ -53,7 +54,7 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
-                child: const Text("Mengerti"),
+                child: Text("Mengerti"),
               ),
             ),
             const SizedBox(height: 12),
@@ -69,15 +70,24 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
                   ),
                 ),
                 onPressed: () {
-                  ref.read(emergencyProvider.notifier).markAsSafe();
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        "Status darurat dibatalkan.",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      backgroundColor: Colors.red,
+                  showDialog(
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (pinContext) => PinVerificationDialog(
+                      onSuccess: () {
+                        Navigator.of(pinContext).pop();
+                        Navigator.of(context).pop();
+                        ref.read(emergencyProvider.notifier).markAsSafe();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              "Status darurat berhasil dibatalkan.", 
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            backgroundColor: AppColors.primary, 
+                          ),
+                        );
+                      },
                     ),
                   );
                 },

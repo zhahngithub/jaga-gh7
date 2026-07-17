@@ -2,12 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:jaga/core/constants/safety_constants.dart';
+import 'package:jaga/features/distress/application/distress_controller.dart';
+import 'package:jaga/features/distress/data/models/distress_session.dart';
 import 'package:jaga/features/map/application/emergency_service.dart';
 import 'package:jaga/features/map/presentation/widgets/emergency_notified_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/help_request_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/nearby_notified_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/police_notified_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/safety_check_dialog.dart';
+import 'package:jaga/features/notifications/application/notification_routing_controller.dart';
 import 'package:jaga/features/reports/application/report_controller.dart';
 import 'package:jaga/features/reports/data/models/report.dart';
 import 'package:jaga/features/reports/presentation/widgets/report_bottom_sheet.dart';
@@ -46,6 +49,8 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
   bool _hasInitialCameraMoved = false;
   bool _isCorrectingDraftCamera = false;
   bool _draftRecenterScheduled = false;
+  bool _notificationNavigationScheduled = false;
+  String? _centeredDistressSessionId;
   double? _reportSheetTop;
   double? _lastObservedRotation;
   LatLng? _selectedReportLocation;
@@ -64,7 +69,14 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
 
     // tunggu ui selesai build, baru panggil pop up
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _showWelcomePopup();
+      final pendingSessionId = ref
+          .read(notificationNavigationProvider)
+          .pendingSessionId;
+      if (pendingSessionId == null) {
+        _showWelcomePopup();
+      } else {
+        _schedulePendingNotificationNavigation();
+      }
     });
   }
 
@@ -131,6 +143,49 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
         );
       },
     );
+  }
+
+  void _schedulePendingNotificationNavigation() {
+    if (_notificationNavigationScheduled) return;
+    _notificationNavigationScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _notificationNavigationScheduled = false;
+      if (!mounted) return;
+      final navigation = ref.read(notificationNavigationProvider);
+      if (navigation.pendingSessionId == null) return;
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      ref
+          .read(notificationNavigationProvider.notifier)
+          .activatePendingSession();
+    });
+  }
+
+  void _showDistressMessage(String message, {required bool isError}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: isError ? Colors.red.shade700 : null,
+        ),
+      );
+      ref.read(distressControllerProvider.notifier).clearFeedback();
+    });
+  }
+
+  String _locationUnavailableMessage(AsyncValue<LatLng> location) {
+    final errorText = location.error?.toString().toLowerCase() ?? '';
+    if (errorText.contains('denied forever') ||
+        errorText.contains('permanently denied')) {
+      return 'Izin lokasi ditolak permanen. Aktifkan izin lokasi di pengaturan.';
+    }
+    if (errorText.contains('denied')) {
+      return 'Izin lokasi diperlukan untuk mengirim sinyal darurat.';
+    }
+    if (errorText.contains('disabled')) {
+      return 'Layanan lokasi sedang nonaktif.';
+    }
+    return 'Lokasi saat ini belum tersedia. Tunggu GPS lalu coba lagi.';
   }
 
   Offset? _visibleMapCenter() {
@@ -288,6 +343,85 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     }
   }
 
+  // dangerous route 100 meter
+  bool _isRouteDangerous(List<LatLng> route, List<Report> hazards) {
+    final distanceCalc = const Distance();
+    for (final point in route) {
+      for (final hazard in hazards) {
+        final dist = distanceCalc.as(
+          LengthUnit.Meter, 
+          point, 
+          LatLng(hazard.location.latitude, hazard.location.longitude)
+        );
+        if (dist <= 100.0) return true;
+      }
+    }
+    return false;
+  }
+
+  // red blue route
+  List<Polyline> _buildColoredRoute(List<LatLng> routePoints, List<Report> hazards) {
+    if (routePoints.isEmpty) return [];
+
+    final distanceCalc = const Distance();
+    const double dangerRadius = 100.0; // 100 meter
+
+    List<Polyline> polylines = [];
+    List<LatLng> currentSegment = [routePoints.first];
+    
+    // titik awal
+    bool wasInDanger = hazards.any((hazard) => 
+      distanceCalc.as(
+        LengthUnit.Meter, 
+        routePoints.first, 
+        LatLng(hazard.location.latitude, hazard.location.longitude)
+      ) <= dangerRadius
+    );
+
+    for (int i = 1; i < routePoints.length; i++) {
+      final point = routePoints[i];
+      
+      // check each point
+      final isInDanger = hazards.any((hazard) => 
+        distanceCalc.as(
+          LengthUnit.Meter, 
+          point, 
+          LatLng(hazard.location.latitude, hazard.location.longitude)
+        ) <= dangerRadius
+      );
+
+      // same status
+      if (isInDanger == wasInDanger) {
+        currentSegment.add(point);
+      } else {
+        // change status
+        currentSegment.add(point);
+        polylines.add(
+          Polyline(
+            points: currentSegment,
+            strokeWidth: 5.0,
+            color: wasInDanger ? Colors.redAccent : Colors.blueAccent,
+          ),
+        );
+        currentSegment = [point];
+        wasInDanger = isInDanger;
+      }
+    }
+
+    // draw line sisa
+    if (currentSegment.length > 1) {
+      polylines.add(
+        Polyline(
+          points: currentSegment,
+          strokeWidth: 5.0,
+          color: wasInDanger ? Colors.redAccent : Colors.blueAccent,
+        ),
+      );
+    }
+
+    return polylines;
+  }
+
   @override
   Widget build(BuildContext context) {
     // pake provider buat gps
@@ -295,6 +429,44 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     final draftLocation = ref.watch(draftLocationProvider);
     final reportsAsync = ref.watch(visibleReportsProvider);
     final visibleReports = reportsAsync.value ?? const <Report>[];
+    final distressState = ref.watch(distressControllerProvider);
+    final notificationNavigation = ref.watch(notificationNavigationProvider);
+    final viewedSessionId = notificationNavigation.viewedSessionId;
+    final viewedSession = viewedSessionId == null
+        ? null
+        : ref.watch(distressSessionProvider(viewedSessionId));
+    final distressSession = viewedSession?.value;
+
+    ref.listen<NotificationNavigationState>(notificationNavigationProvider, (
+      previous,
+      next,
+    ) {
+      if (next.pendingSessionId != null &&
+          next.pendingSessionId != previous?.pendingSessionId) {
+        _schedulePendingNotificationNavigation();
+      }
+    });
+
+    ref.listen<DistressState>(distressControllerProvider, (
+      previous,
+      next,
+    ) {
+      final message = next.feedbackMessage;
+      if (message != null && message != previous?.feedbackMessage) {
+        _showDistressMessage(message, isError: next.feedbackIsError);
+      }
+    });
+
+    if (viewedSessionId != null &&
+        distressSession != null &&
+        _centeredDistressSessionId != viewedSessionId) {
+      _centeredDistressSessionId = viewedSessionId;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _mapController.move(distressSession.preciseLocation, 16);
+        }
+      });
+    }
 
     // Listener for showing the pop up after certain time countdown
     ref.listen<EmergencyStatus>(emergencyProvider, (previous, next) {
@@ -352,6 +524,13 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                   }
                 }
               },
+              onLongPress: (_, location) {
+                // tutup keyboard kalau kebuka
+                FocusScope.of(context).unfocus();
+                
+                // update provider tujuan ke titik yang ditekan
+                ref.read(destinationProvider.notifier).updateLocation(location);
+              },
             ),
             children: [
               TileLayer(
@@ -361,15 +540,52 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
 
               // layer buat gambar garis rute
               PolylineLayer(
-                polylines: [
-                  // cuman draw kalau ga kosong, soalnya error dia kalau ga gini
-                  if (ref.watch(routeProvider).isNotEmpty)
-                    Polyline(
-                      points: ref.watch(routeProvider),
-                      strokeWidth: 5.0,
-                      color: Colors.blueAccent,
+                polylines: () {
+                  final routeState = ref.watch(routeProvider);
+                  final hazards = visibleReports
+                      .where((r) => r.reportType != 'protective')
+                      .toList();
+
+                  // 1. Gambar rute utama (dipotong jadi merah kalau bahaya)
+                  List<Polyline> allLines = List.from(
+                    _buildColoredRoute(routeState.mainRoute, hazards)
+                  );
+
+                  // 2. Kalau ada rute aman alternatif, tumpuk di atasnya
+                  if (routeState.safeRoute.isNotEmpty) {
+                    allLines.add(
+                      Polyline(
+                        points: routeState.safeRoute,
+                        strokeWidth: 6.0,
+                        color: Colors.lightBlueAccent, // Warna beda buat rute aman
+                        borderColor: Colors.blue.shade900,
+                        borderStrokeWidth: 2.0,
+                      ),
+                    );
+                  }
+                  
+                  return allLines;
+                }(),
+              ),
+
+              // lingkaran tiap marker
+              CircleLayer(
+                circles: visibleReports
+                    // Only draw circles for hazard reports (ignore police/cctv)
+                    .where((report) => report.reportType != 'protective')
+                    .map((report) {
+                  return CircleMarker(
+                    point: LatLng(
+                      report.location.latitude,
+                      report.location.longitude,
                     ),
-                ],
+                    color: Colors.red.withOpacity(0.2), // Transparent red fill
+                    borderColor: Colors.redAccent, // Solid red border
+                    borderStrokeWidth: 2,
+                    useRadiusInMeter: true,
+                    radius: 100.0, // 50 meter radius
+                  );
+                }).toList(),
               ),
 
               // kalau ada data location, draw marker
@@ -506,6 +722,36 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                   ),
                 ],
               ),
+              if (distressSession?.isActive == true)
+                MarkerLayer(
+                  rotate: true,
+                  markers: [
+                    Marker(
+                      point: distressSession!.preciseLocation,
+                      width: 76,
+                      height: 76,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade700,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 4),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black38,
+                              blurRadius: 10,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.sos_rounded,
+                          color: Colors.white,
+                          size: 38,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
             ],
           ),
 
@@ -647,37 +893,95 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                     label: const Text("DEBUG: Test Police Notified Popup"),
                   ),
 
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: distressState.isLoading
+                        ? null
+                        : () async {
+                            if (distressState.isActive) {
+                              await ref
+                                  .read(
+                                    distressControllerProvider.notifier,
+                                  )
+                                  .stop();
+                              return;
+                            }
+                            final currentLocation = ref
+                                .read(liveLocationProvider)
+                                .value;
+                            if (currentLocation == null) {
+                              _showDistressMessage(
+                                _locationUnavailableMessage(
+                                  ref.read(liveLocationProvider),
+                                ),
+                                isError: true,
+                              );
+                              return;
+                            }
+                            await ref
+                                .read(distressControllerProvider.notifier)
+                                .start(currentLocation);
+                          },
+                    icon: distressState.isLoading
+                        ? const SizedBox.square(
+                            dimension: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.bug_report),
+                    label: Text(
+                      distressState.isActive
+                          ? 'DEBUG: Stop Distress Session'
+                          : 'DEBUG: Send Distress Notification',
+                    ),
+                  ),
+
                   const SizedBox(height: 12), // kasi jarak buat tombol rute
                   // tombol debug buat tes rute
                   ElevatedButton(
                     onPressed: () async {
-                      // ambil gps sekarang sama lokasi tujuan dari riverpod
-                      final currentPosition = ref
-                          .read(liveLocationProvider)
-                          .value;
+                      final currentPosition = ref.read(liveLocationProvider).value;
                       final destinationPosition = ref.read(destinationProvider);
 
-                      // pastikan dua-duanya ga kosong
-                      if (currentPosition != null &&
-                          destinationPosition != null) {
-                        // hit api ors
-                        final routePoints = await RoutingService.getRoute(
+                      if (currentPosition != null && destinationPosition != null) {
+                        
+                        final hazards = visibleReports
+                            .where((report) => report.reportType != 'protective')
+                            .toList();
+
+                        // 1. Ambil rute normal (tanpa ngehindari apapun)
+                        final mainRoute = await RoutingService.getRoute(
                           currentPosition,
                           destinationPosition,
                         );
 
-                        // update state biar polyline ke-gambar
-                        ref
-                            .read(routeProvider.notifier)
-                            .updateRoute(routePoints);
+                        // 2. Cek apakah rute normal ini bahaya?
+                        bool isDangerous = _isRouteDangerous(mainRoute, hazards);
+                        List<LatLng> safeRoute = [];
+
+                        // 3. Kalau bahaya, hit API kedua kali buat cari jalan memutar
+                        if (isDangerous) {
+                          safeRoute = await RoutingService.getRoute(
+                            currentPosition,
+                            destinationPosition,
+                            hazards: hazards, // Paksa API hindari kotak merah
+                          );
+                        }
+
+                        // 4. Simpan dua-duanya ke state
+                        ref.read(routeProvider.notifier).updateRoutes(
+                          main: mainRoute,
+                          safe: safeRoute,
+                        );
+
                       } else {
-                        // error handling kalau belum pilih tujuan atau gps belum dapet
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Wait for GPS and select a destination first',
-                            ),
-                          ),
+                          const SnackBar(content: Text('Wait for GPS and select a destination first')),
                         );
                       }
                     },
@@ -691,6 +995,25 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
               ),
             ),
           ),
+          if (viewedSession != null)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 88,
+              child: _DistressSessionBanner(
+                session: distressSession,
+                isLoading: viewedSession.isLoading,
+                errorMessage: viewedSession.hasError
+                    ? viewedSession.error.toString()
+                    : null,
+                onDismiss: () {
+                  _centeredDistressSessionId = null;
+                  ref
+                      .read(notificationNavigationProvider.notifier)
+                      .clearViewedSession();
+                },
+              ),
+            ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -705,6 +1028,103 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
         child: const Icon(Icons.my_location, color: Colors.blueAccent),
       ),
     );
+  }
+}
+
+class _DistressSessionBanner extends StatelessWidget {
+  const _DistressSessionBanner({
+    required this.session,
+    required this.isLoading,
+    required this.errorMessage,
+    required this.onDismiss,
+  });
+
+  final DistressSession? session;
+  final bool isLoading;
+  final String? errorMessage;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final currentSession = session;
+    final status = currentSession?.effectiveStatus;
+    final statusLabel = switch (status) {
+      DistressStatus.active => 'Aktif',
+      DistressStatus.ended => 'Berakhir',
+      DistressStatus.expired => 'Kedaluwarsa',
+      null => 'Tidak tersedia',
+    };
+    final accentColor = switch (status) {
+      DistressStatus.active => Colors.red.shade700,
+      DistressStatus.expired => Colors.orange.shade800,
+      _ => Colors.grey.shade700,
+    };
+
+    return Material(
+      elevation: 6,
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        child: Row(
+          children: [
+            if (isLoading)
+              const SizedBox.square(
+                dimension: 28,
+                child: CircularProgressIndicator(strokeWidth: 3),
+              )
+            else
+              Icon(
+                status == DistressStatus.active
+                    ? Icons.sos_rounded
+                    : Icons.info_outline_rounded,
+                color: accentColor,
+                size: 32,
+              ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: errorMessage != null
+                  ? Text(
+                      'Sesi tidak dapat dibuka: $errorMessage',
+                      style: TextStyle(color: accentColor),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          currentSession?.senderDisplayName ??
+                              'Memuat sesi darurat…',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        if (currentSession != null)
+                          Text(
+                            'Status: $statusLabel • Diperbarui ${_formatUpdatedAt(currentSession.updatedAt)}',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                      ],
+                    ),
+            ),
+            IconButton(
+              tooltip: 'Tutup lokasi darurat',
+              onPressed: onDismiss,
+              icon: const Icon(Icons.close_rounded),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _formatUpdatedAt(DateTime? value) {
+    if (value == null) return 'belum tersedia';
+    final local = value.toLocal();
+    final hour = local.hour.toString().padLeft(2, '0');
+    final minute = local.minute.toString().padLeft(2, '0');
+    final second = local.second.toString().padLeft(2, '0');
+    return '$hour:$minute:$second';
   }
 }
 
