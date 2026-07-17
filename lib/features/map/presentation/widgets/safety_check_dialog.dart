@@ -1,14 +1,55 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:jaga/core/theme/app_colors.dart';
 import 'package:jaga/features/map/application/emergency_service.dart';
+import 'package:jaga/features/map/presentation/widgets/pin_verification_dialog.dart';
 
-class SafetyCheckDialog extends ConsumerWidget {
+class SafetyCheckDialog extends ConsumerStatefulWidget {
   final int distanceInMeters;
 
   const SafetyCheckDialog({super.key, required this.distanceInMeters});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SafetyCheckDialog> createState() => _SafetyCheckDialogState();
+}
+
+class _SafetyCheckDialogState extends ConsumerState<SafetyCheckDialog> {
+  bool _isVerifyingPin = false;
+
+  Future<void> _markAsSafe() async {
+    if (_isVerifyingPin) return;
+    setState(() => _isVerifyingPin = true);
+
+    final verified = await showPinVerificationDialog(
+      context,
+      reason: 'membatalkan peringatan darurat',
+    );
+    if (!mounted) return;
+    if (!verified) {
+      setState(() => _isVerifyingPin = false);
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    ref.read(emergencyProvider.notifier).markAsSafe();
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Status darurat berhasil dibatalkan.',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: AppColors.primary,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final emergencyState = ref.watch(emergencyProvider);
+    final distance =
+        emergencyState.offTrackDistanceMeters ?? widget.distanceInMeters;
+    final seconds = emergencyState.secondsRemaining ?? 0;
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       child: Padding(
@@ -27,7 +68,8 @@ class SafetyCheckDialog extends ConsumerWidget {
             const SizedBox(height: 8),
 
             Text(
-              "Kamu $distanceInMeters meter diluar jalur utama.",
+              'Kamu $distance meter di luar jalur utama. Jika tidak ada '
+              'respons, kontak daruratmu akan dihubungi dalam $seconds detik.',
               style: Theme.of(
                 context,
               ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
@@ -66,9 +108,7 @@ class SafetyCheckDialog extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: () {
-                  ref.read(emergencyProvider.notifier).markAsSafe();
-                },
+                onPressed: _isVerifyingPin ? null : _markAsSafe,
                 child: Text(
                   "Tidak, aku aman.",
                   style: Theme.of(

@@ -207,6 +207,18 @@ service cloud.firestore {
       allow update: if request.auth != null
         && resource.data.senderUid == request.auth.uid
         && resource.data.status == 'active'
+        && resource.data.audience == 'trusted_contact'
+        && request.resource.data.audience == 'nearby_helper'
+        && request.resource.data.status == 'active'
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'audience',
+          'updatedAt'
+        ]);
+
+      allow update: if request.auth != null
+        && resource.data.senderUid == request.auth.uid
+        && resource.data.status == 'active'
         && request.resource.data.status == 'ended'
         && request.resource.data.updatedAt == request.time
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([

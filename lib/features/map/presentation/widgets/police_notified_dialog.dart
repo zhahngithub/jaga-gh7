@@ -30,7 +30,6 @@ class _PoliceNotifiedDialogState extends ConsumerState<PoliceNotifiedDialog> {
 
     final messenger = ScaffoldMessenger.of(context);
     ref.read(emergencyProvider.notifier).markAsSafe();
-    Navigator.of(context).pop();
     messenger.showSnackBar(
       const SnackBar(
         content: Text(

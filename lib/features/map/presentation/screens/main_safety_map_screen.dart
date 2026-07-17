@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -14,7 +16,6 @@ import 'package:jaga/features/map/presentation/widgets/pin_verification_dialog.d
 import 'package:jaga/features/map/presentation/widgets/police_notified_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/safety_check_dialog.dart';
 import 'package:jaga/features/notifications/application/notification_routing_controller.dart';
-import 'package:jaga/features/profile/presentation/widgets/community_gratitude_dialog.dart';
 import 'package:jaga/features/reports/application/report_controller.dart';
 import 'package:jaga/features/reports/data/models/report.dart';
 import 'package:jaga/features/reports/presentation/widgets/report_bottom_sheet.dart';
@@ -50,11 +51,11 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
   final GlobalKey _mapKey = GlobalKey();
   final GlobalKey _searchHeaderKey = GlobalKey();
   late final AnimationController _reportCameraAnimation;
-  bool _hasInitialCameraMoved = false;
   bool _isCorrectingDraftCamera = false;
   bool _draftRecenterScheduled = false;
   bool _notificationNavigationScheduled = false;
-  bool _isCommunityGratitudePopupOpen = false;
+  bool _isRouteLoading = false;
+  Route<void>? _emergencyPopupRoute;
   String? _centeredDistressSessionId;
   double? _reportSheetTop;
   double? _lastObservedRotation;
@@ -102,30 +103,15 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
   }
 
   void _showSafetyCheckPopup(int distance) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return SafetyCheckDialog(distanceInMeters: distance);
-      },
-    );
+    _replaceEmergencyPopup(SafetyCheckDialog(distanceInMeters: distance));
   }
 
   void _showEmergencyNotifiedPopup() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const EmergencyNotifiedDialog(),
-    );
+    _replaceEmergencyPopup(const EmergencyNotifiedDialog());
   }
 
-  // belum di testing
   void _showNearbyNotifiedPopup() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const NearbyNotifiedDialog(),
-    );
+    _replaceEmergencyPopup(const NearbyNotifiedDialog());
   }
 
   void _showHelpRequestPopup() {
@@ -136,37 +122,104 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
         //TODO: this is place holder, maybe can implement count
         distanceInMeters: 10,
         onSeeLocation: () {
-          Navigator.of(context).popUntil((route) => route.isFirst); 
-          ref.read(notificationNavigationProvider.notifier).activatePendingSession();
+          Navigator.of(context).popUntil((route) => route.isFirst);
+          ref
+              .read(notificationNavigationProvider.notifier)
+              .activatePendingSession();
         },
       ),
     );
   }
 
   void _showPoliceNotifiedPopup() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return const PoliceNotifiedDialog(
-          policeStationName: "Polda Metro Jaya",
-        );
-      },
+    _replaceEmergencyPopup(
+      const PoliceNotifiedDialog(policeStationName: 'Polda Metro Jaya'),
     );
   }
 
-  Future<void> _showCommunityGratitudePopup() async {
-    if (_isCommunityGratitudePopupOpen) return;
-    _isCommunityGratitudePopupOpen = true;
+  void _replaceEmergencyPopup(Widget dialog) {
+    if (!mounted) return;
+    final navigator = Navigator.of(context, rootNavigator: true);
+    _closeEmergencyPopup();
 
-    try {
-      await showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const CommunityGratitudeDialog(),
-      );
-    } finally {
-      _isCommunityGratitudePopupOpen = false;
+    final route = DialogRoute<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => dialog,
+    );
+    _emergencyPopupRoute = route;
+    unawaited(
+      navigator.push(route).whenComplete(() {
+        if (identical(_emergencyPopupRoute, route)) {
+          _emergencyPopupRoute = null;
+        }
+      }),
+    );
+  }
+
+  void _closeEmergencyPopup() {
+    final route = _emergencyPopupRoute;
+    if (route == null || !mounted) return;
+    _emergencyPopupRoute = null;
+    if (!route.isActive) return;
+
+    final navigator = Navigator.of(context, rootNavigator: true);
+    navigator.popUntil((candidate) => identical(candidate, route));
+    if (route.isActive) navigator.pop();
+  }
+
+  Future<void> _startTrustedContactPhase() async {
+    final started = await ref
+        .read(distressControllerProvider.notifier)
+        .startTrustedContactDistress();
+    if (!started || !mounted) return;
+
+    final phase = ref.read(emergencyProvider).phase;
+    if (phase == EmergencyPhase.safe) {
+      await ref.read(distressControllerProvider.notifier).stop();
+    } else if (phase == EmergencyPhase.nearbyHelpers ||
+        phase == EmergencyPhase.police) {
+      await _startNearbyHelperPhase();
+    }
+  }
+
+  Future<void> _startNearbyHelperPhase() async {
+    final escalated = await ref
+        .read(distressControllerProvider.notifier)
+        .escalateToNearbyHelpers();
+    if (!escalated || !mounted) return;
+    if (ref.read(emergencyProvider).phase == EmergencyPhase.safe) {
+      await ref.read(distressControllerProvider.notifier).stop();
+    }
+  }
+
+  Future<void> _handleEmergencyStateChange(
+    EmergencyState? previous,
+    EmergencyState next,
+  ) async {
+    if (previous?.phase == next.phase) return;
+
+    switch (next.phase) {
+      case EmergencyPhase.safe:
+        _closeEmergencyPopup();
+        if (ref.read(distressControllerProvider).isActive) {
+          await ref.read(distressControllerProvider.notifier).stop();
+        }
+        return;
+      case EmergencyPhase.offTrackWarning:
+        _showSafetyCheckPopup(next.offTrackDistanceMeters ?? _offTrackDistance);
+        return;
+      case EmergencyPhase.trustedContacts:
+        _showEmergencyNotifiedPopup();
+        unawaited(_startTrustedContactPhase());
+        return;
+      case EmergencyPhase.nearbyHelpers:
+        _showNearbyNotifiedPopup();
+        unawaited(_startNearbyHelperPhase());
+        return;
+      case EmergencyPhase.police:
+        _showPoliceNotifiedPopup();
+        return;
     }
   }
 
@@ -374,9 +427,9 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     for (final point in route) {
       for (final hazard in hazards) {
         final dist = distanceCalc.as(
-          LengthUnit.Meter, 
-          point, 
-          LatLng(hazard.location.latitude, hazard.location.longitude)
+          LengthUnit.Meter,
+          point,
+          LatLng(hazard.location.latitude, hazard.location.longitude),
         );
         if (dist <= 100.0) return true;
       }
@@ -384,8 +437,98 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     return false;
   }
 
+  bool _isSameLocation(LatLng? first, LatLng? second) {
+    if (first == null || second == null) return first == second;
+    return first.latitude == second.latitude &&
+        first.longitude == second.longitude;
+  }
+
+  void _handleDestinationChanged(LatLng? previous, LatLng? next) {
+    if (_isSameLocation(previous, next)) return;
+    ref.read(routeProvider.notifier).clearRoutes();
+    if (next == null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted ||
+          !_isSameLocation(ref.read(destinationProvider), next)) {
+        return;
+      }
+      _mapController.move(next, 15.0);
+    });
+  }
+
+  Future<void> _startRoute(List<Report> visibleReports) async {
+    if (_isRouteLoading) return;
+
+    final currentPosition = ref.read(liveLocationProvider).value;
+    final destinationPosition = ref.read(destinationProvider);
+    if (currentPosition == null) {
+      _showDistressMessage(
+        _locationUnavailableMessage(ref.read(liveLocationProvider)),
+        isError: true,
+      );
+      return;
+    }
+    if (destinationPosition == null) return;
+
+    setState(() => _isRouteLoading = true);
+    try {
+      final hazards = visibleReports
+          .where((report) => report.reportType != 'protective')
+          .toList();
+      final mainRoute = await RoutingService.getRoute(
+        currentPosition,
+        destinationPosition,
+      );
+      if (!mounted ||
+          !_isSameLocation(ref.read(destinationProvider), destinationPosition)) {
+        return;
+      }
+      if (mainRoute.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Rute belum dapat dibuat. Coba lagi.')),
+        );
+        return;
+      }
+
+      final isDangerous = _isRouteDangerous(mainRoute, hazards);
+      var safeRoute = <LatLng>[];
+      if (isDangerous) {
+        safeRoute = await RoutingService.getRoute(
+          currentPosition,
+          destinationPosition,
+          hazards: hazards,
+        );
+        if (!mounted ||
+            !_isSameLocation(
+              ref.read(destinationProvider),
+              destinationPosition,
+            )) {
+          return;
+        }
+        if (safeRoute.isEmpty || _isRouteDangerous(safeRoute, hazards)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Rute alternatif aman belum dapat ditemukan.'),
+            ),
+          );
+          return;
+        }
+      }
+
+      ref
+          .read(routeProvider.notifier)
+          .updateRoutes(main: mainRoute, safe: safeRoute);
+    } finally {
+      if (mounted) setState(() => _isRouteLoading = false);
+    }
+  }
+
   // red blue route
-  List<Polyline> _buildColoredRoute(List<LatLng> routePoints, List<Report> hazards) {
+  List<Polyline> _buildColoredRoute(
+    List<LatLng> routePoints,
+    List<Report> hazards,
+  ) {
     if (routePoints.isEmpty) return [];
 
     final distanceCalc = const Distance();
@@ -393,26 +536,30 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
 
     List<Polyline> polylines = [];
     List<LatLng> currentSegment = [routePoints.first];
-    
+
     // titik awal
-    bool wasInDanger = hazards.any((hazard) => 
-      distanceCalc.as(
-        LengthUnit.Meter, 
-        routePoints.first, 
-        LatLng(hazard.location.latitude, hazard.location.longitude)
-      ) <= dangerRadius
+    bool wasInDanger = hazards.any(
+      (hazard) =>
+          distanceCalc.as(
+            LengthUnit.Meter,
+            routePoints.first,
+            LatLng(hazard.location.latitude, hazard.location.longitude),
+          ) <=
+          dangerRadius,
     );
 
     for (int i = 1; i < routePoints.length; i++) {
       final point = routePoints[i];
-      
+
       // check each point
-      final isInDanger = hazards.any((hazard) => 
-        distanceCalc.as(
-          LengthUnit.Meter, 
-          point, 
-          LatLng(hazard.location.latitude, hazard.location.longitude)
-        ) <= dangerRadius
+      final isInDanger = hazards.any(
+        (hazard) =>
+            distanceCalc.as(
+              LengthUnit.Meter,
+              point,
+              LatLng(hazard.location.latitude, hazard.location.longitude),
+            ) <=
+            dangerRadius,
       );
 
       // same status
@@ -448,13 +595,12 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
   }
 
   // INI BAGIAN BUAT CEK OFF TRACK
-  // default 150m for the debug button fallback
-  int _offTrackDistance = 150; 
+  int _offTrackDistance = 0;
 
   // Fungsi buat ngecek jarak terdekat dari user ke garis rute
   double _calculateDistanceToRoute(LatLng currentPos, List<LatLng> route) {
     if (route.isEmpty) return 0.0;
-    
+
     final distance = const Distance();
     double minDistance = double.infinity;
 
@@ -490,23 +636,29 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
             ),
             const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.report_problem_rounded, color: Colors.orange),
+              leading: const Icon(
+                Icons.report_problem_rounded,
+                color: Colors.orange,
+              ),
               title: const Text('Lapor Lokasi'),
-              subtitle: const Text('Tambahkan laporan bahaya atau aman di titik ini'),
+              subtitle: const Text(
+                'Tambahkan laporan bahaya atau aman di titik ini',
+              ),
               onTap: () {
                 Navigator.pop(context); // Tutup menu
                 _openReportSheet(location); // Buka form report
               },
             ),
             ListTile(
-              leading: const Icon(Icons.directions_walk, color: Colors.blueAccent),
+              leading: const Icon(
+                Icons.directions_walk,
+                color: Colors.blueAccent,
+              ),
               title: const Text('Jadikan Tujuan'),
               subtitle: const Text('Arahkan rute navigasi ke titik ini'),
               onTap: () {
                 Navigator.pop(context); // Tutup menu
                 ref.read(destinationProvider.notifier).updateLocation(location);
-                // Snap kamera HANYA SEKALI pas tujuan dipilih
-                _mapController.move(location, 15.0); 
               },
             ),
             const SizedBox(height: 16),
@@ -550,6 +702,9 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     final reportsAsync = ref.watch(visibleReportsProvider);
     final visibleReports = reportsAsync.value ?? const <Report>[];
     final distressState = ref.watch(distressControllerProvider);
+    final emergencyState = ref.watch(emergencyProvider);
+    final destinationPosition = ref.watch(destinationProvider);
+    final routeState = ref.watch(routeProvider);
     final authSession = ref.watch(authenticationStateProvider).value;
     final senderSessionId = distressState.activeSessionId;
     final senderSession = senderSessionId == null
@@ -578,15 +733,14 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
       }
     });
 
-    ref.listen<DistressState>(distressControllerProvider, (
-      previous,
-      next,
-    ) {
+    ref.listen<DistressState>(distressControllerProvider, (previous, next) {
       final message = next.feedbackMessage;
       if (message != null && message != previous?.feedbackMessage) {
         _showDistressMessage(message, isError: next.feedbackIsError);
       }
     });
+
+    ref.listen<LatLng?>(destinationProvider, _handleDestinationChanged);
 
     if (viewedSessionId != null &&
         distressSession != null &&
@@ -599,50 +753,37 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
       });
     }
 
-    // Listener for showing the pop up after certain time countdown
-    ref.listen<EmergencyStatus>(emergencyProvider, (previous, next) async {
-      if (next == EmergencyStatus.warning) {
-        _showSafetyCheckPopup(_offTrackDistance);
-      } else if (next == EmergencyStatus.safe && previous == EmergencyStatus.warning) {
-        Navigator.of(context).pop(); // Tutup popup warning
-      } else if (next == EmergencyStatus.notifying && previous == EmergencyStatus.warning) {
-        Navigator.of(context).pop(); // Tutup popup warning
-
-        // TRIGGER REAL SOS KE BACKEND
-        final currentLocation = ref.read(liveLocationProvider).value;
-        if (currentLocation != null) {
-          await ref.read(distressControllerProvider.notifier).start(currentLocation);
-        } else {
-          _showDistressMessage('Lokasi tidak tersedia untuk mengirim SOS otomatis.', isError: true);
-        }
-      }
-    });
+    ref.listen<EmergencyState>(emergencyProvider, _handleEmergencyStateChange);
 
     // listener buat off track
     ref.listen(liveLocationProvider, (previous, next) {
       final currentPos = next.value;
-      final currentEmergencyStatus = ref.read(emergencyProvider);
-      final routeState = ref.watch(routeProvider);
+      final currentEmergencyState = ref.read(emergencyProvider);
+      final routeState = ref.read(routeProvider);
 
       // Prioritaskan safeRoute kalau ada, kalau ga ada pake mainRoute
-      final activeRoute = routeState.safeRoute.isNotEmpty 
-          ? routeState.safeRoute 
+      final activeRoute = routeState.safeRoute.isNotEmpty
+          ? routeState.safeRoute
           : routeState.mainRoute;
 
-      // Pastikan GPS dapet, rute ada, dan status lagi AMAN (biar ga spam popup)
-      if (currentPos != null && activeRoute.isNotEmpty && currentEmergencyStatus == EmergencyStatus.safe) {
-        
-        // Hitung jarak user ke rute
-        double distanceToRoute = _calculateDistanceToRoute(currentPos, activeRoute);
+      if (currentPos == null || activeRoute.isEmpty) return;
 
-        // Kalau keluar jalur lebih dari 100 meter
-        if (distanceToRoute > 100.0) {
-          // Update angka jarak buat ditampilin di popup
-          _offTrackDistance = distanceToRoute.toInt();
-          
-          // Trigger state warning (ini otomatis manggil listener di atas buat pop up dialog)
-          ref.read(emergencyProvider.notifier).triggerWarning();
-        }
+      final distanceToRoute = _calculateDistanceToRoute(
+        currentPos,
+        activeRoute,
+      );
+      final distanceInMeters = distanceToRoute.toInt();
+      if (currentEmergencyState.phase == EmergencyPhase.offTrackWarning) {
+        _offTrackDistance = distanceInMeters;
+        ref
+            .read(emergencyProvider.notifier)
+            .updateOffTrackDistance(distanceInMeters);
+      } else if (currentEmergencyState.phase == EmergencyPhase.safe &&
+          distanceToRoute > 100.0) {
+        _offTrackDistance = distanceInMeters;
+        ref
+            .read(emergencyProvider.notifier)
+            .triggerWarning(distanceInMeters: distanceInMeters);
       }
     });
 
@@ -677,29 +818,35 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
               // layer buat gambar garis rute
               PolylineLayer(
                 polylines: () {
-                  final routeState = ref.watch(routeProvider);
                   final hazards = visibleReports
                       .where((r) => r.reportType != 'protective')
                       .toList();
 
-                  // 1. Gambar rute utama (dipotong jadi merah kalau bahaya)
-                  List<Polyline> allLines = List.from(
-                    _buildColoredRoute(routeState.mainRoute, hazards)
-                  );
+                  final hasSafeAlternative = routeState.safeRoute.isNotEmpty;
+                  final allLines = hasSafeAlternative
+                      ? <Polyline>[
+                          Polyline(
+                            points: routeState.mainRoute,
+                            strokeWidth: 5.0,
+                            color: Colors.redAccent,
+                          ),
+                        ]
+                      : List<Polyline>.from(
+                          _buildColoredRoute(routeState.mainRoute, hazards),
+                        );
 
-                  // 2. Kalau ada rute aman alternatif, tumpuk di atasnya
-                  if (routeState.safeRoute.isNotEmpty) {
+                  if (hasSafeAlternative) {
                     allLines.add(
                       Polyline(
                         points: routeState.safeRoute,
                         strokeWidth: 6.0,
-                        color: Colors.lightBlueAccent, // Warna beda buat rute aman
+                        color: Colors.lightBlueAccent,
                         borderColor: Colors.blue.shade900,
                         borderStrokeWidth: 2.0,
                       ),
                     );
                   }
-                  
+
                   return allLines;
                 }(),
               ),
@@ -710,32 +857,26 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                     // Only draw circles for hazard reports (ignore police/cctv)
                     .where((report) => report.reportType != 'protective')
                     .map((report) {
-                  return CircleMarker(
-                    point: LatLng(
-                      report.location.latitude,
-                      report.location.longitude,
-                    ),
-                    color: Colors.red.withOpacity(0.2), // Transparent red fill
-                    borderColor: Colors.redAccent, // Solid red border
-                    borderStrokeWidth: 2,
-                    useRadiusInMeter: true,
-                    radius: 100.0, // 50 meter radius
-                  );
-                }).toList(),
+                      return CircleMarker(
+                        point: LatLng(
+                          report.location.latitude,
+                          report.location.longitude,
+                        ),
+                        color: Colors.red.withValues(
+                          alpha: 0.2,
+                        ), // Transparent red fill
+                        borderColor: Colors.redAccent, // Solid red border
+                        borderStrokeWidth: 2,
+                        useRadiusInMeter: true,
+                        radius: 100.0, // 50 meter radius
+                      );
+                    })
+                    .toList(),
               ),
 
               // kalau ada data location, draw marker
               locationAsyncValue.when(
                 data: (currentPosition) {
-                  // pindah kamera pas pertama load
-                  if (!_hasInitialCameraMoved) {
-                    _hasInitialCameraMoved = true;
-                  }
-
-                  // 1. cek kalau user udah cari tujuan
-                  final destinationPosition = ref.watch(destinationProvider);
-
-                  // 2. build list marker
                   List<Marker> mapMarkers = [
                     // marker biru buat user
                     Marker(
@@ -750,7 +891,6 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                     ),
                   ];
 
-                  // 3. kalau ada tujuan, tambahin pin merah ke map
                   if (destinationPosition != null) {
                     mapMarkers.add(
                       Marker(
@@ -765,10 +905,6 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                       ),
                     );
 
-                    // auto pindah kamera ke pin baru
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _mapController.move(destinationPosition, 15.0);
-                    });
                   }
 
                   return MarkerLayer(markers: mapMarkers);
@@ -989,165 +1125,6 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                     ],
                   ),
 
-                  // tombol debug buat pop up danger
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () {
-                      ref.read(emergencyProvider.notifier).triggerWarning();
-                    },
-                    icon: const Icon(Icons.bug_report),
-                    label: const Text("DEBUG: Test Danger Popup"),
-                  ),
-
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () {
-                      _showNearbyNotifiedPopup();
-                    },
-                    icon: const Icon(Icons.bug_report),
-                    label: const Text("DEBUG: Test Nearby Notified Popup"),
-                  ),
-
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () {
-                      _showHelpRequestPopup();
-                    },
-                    icon: const Icon(Icons.bug_report),
-                    label: const Text("DEBUG: Test Help Needed Notified Popup"),
-                  ),
-
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: () {
-                      _showPoliceNotifiedPopup();
-                    },
-                    icon: const Icon(Icons.bug_report),
-                    label: const Text("DEBUG: Test Police Notified Popup"),
-                  ),
-
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: _showCommunityGratitudePopup,
-                    icon: const Icon(Icons.bug_report),
-                    label: const Text("DEBUG: Test Gratitude Popup"),
-                  ),
-
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.orange,
-                      foregroundColor: Colors.white,
-                    ),
-                    onPressed: distressState.isLoading
-                      ? null
-                      : () async {
-                          // Kalau lagi aktif, minta PIN buat matiin
-                          if (distressState.isActive) {
-                            final isVerified = await showPinVerificationDialog(
-                              context, 
-                              reason: 'membatalkan status darurat'
-                            );
-                            
-                            // Kalau PIN bener, baru stop SOS-nya
-                            if (isVerified) {
-                              await ref.read(distressControllerProvider.notifier).stop();
-                            }
-                            return;
-                          }
-
-                          // Kalau lagi mati, nyalain SOS (tanpa PIN)
-                          final currentLocation = ref.read(liveLocationProvider).value;
-                          if (currentLocation == null) {
-                            _showDistressMessage(
-                              _locationUnavailableMessage(ref.read(liveLocationProvider)),
-                              isError: true,
-                            );
-                            return;
-                          }
-                          
-                          await ref.read(distressControllerProvider.notifier).start(currentLocation);
-                        },
-                    icon: distressState.isLoading
-                        ? const SizedBox.square(
-                            dimension: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.bug_report),
-                    label: Text(
-                      distressState.isActive
-                          ? 'DEBUG: Stop Distress Session'
-                          : 'DEBUG: Send Distress Notification',
-                    ),
-                  ),
-
-                  const SizedBox(height: 12), // kasi jarak buat tombol rute
-                  // tombol debug buat tes rute
-                  ElevatedButton(
-                    onPressed: () async {
-                      final currentPosition = ref.read(liveLocationProvider).value;
-                      final destinationPosition = ref.read(destinationProvider);
-
-                      if (currentPosition != null && destinationPosition != null) {
-                        
-                        final hazards = visibleReports
-                            .where((report) => report.reportType != 'protective')
-                            .toList();
-
-                        // 1. Ambil rute normal (tanpa ngehindari apapun)
-                        final mainRoute = await RoutingService.getRoute(
-                          currentPosition,
-                          destinationPosition,
-                        );
-
-                        // 2. Cek apakah rute normal ini bahaya?
-                        bool isDangerous = _isRouteDangerous(mainRoute, hazards);
-                        List<LatLng> safeRoute = [];
-
-                        // 3. Kalau bahaya, hit API kedua kali buat cari jalan memutar
-                        if (isDangerous) {
-                          safeRoute = await RoutingService.getRoute(
-                            currentPosition,
-                            destinationPosition,
-                            hazards: hazards, // Paksa API hindari kotak merah
-                          );
-                        }
-
-                        // 4. Simpan dua-duanya ke state
-                        ref.read(routeProvider.notifier).updateRoutes(
-                          main: mainRoute,
-                          safe: safeRoute,
-                        );
-
-                      } else {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Wait for GPS and select a destination first')),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.black87,
-                      foregroundColor: Colors.white,
-                    ),
-                    child: const Text('DEBUG route test'),
-                  ),
                 ],
               ),
             ),
@@ -1177,15 +1154,41 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
+          if (destinationPosition != null && routeState.mainRoute.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: FloatingActionButton.extended(
+                heroTag: 'btn_start_route',
+                onPressed: _isRouteLoading
+                    ? null
+                    : () => _startRoute(visibleReports),
+                backgroundColor: Colors.blueAccent,
+                foregroundColor: Colors.white,
+                icon: _isRouteLoading
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.directions_rounded),
+                label: Text(
+                  _isRouteLoading ? 'Membuat Rute...' : 'Mulai Rute',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+
           // 1. TOMBOL BATALKAN RUTE (Hanya muncul jika ada tujuan)
-          if (ref.watch(destinationProvider) != null)
+          if (destinationPosition != null)
             Padding(
               padding: const EdgeInsets.only(bottom: 12.0),
               child: FloatingActionButton.extended(
                 heroTag: "btn_cancel_route",
                 onPressed: () {
                   // Hapus tujuan dan garis rute dari state
-                  ref.invalidate(destinationProvider); 
+                  ref.invalidate(destinationProvider);
                   ref.read(routeProvider.notifier).clearRoutes();
                 },
                 backgroundColor: Colors.white,
@@ -1204,42 +1207,64 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                   ? null
                   : () async {
                       // Kalau lagi aktif, minta PIN buat matiin
-                      if (distressState.isActive) {
+                      if (distressState.isActive || emergencyState.isActive) {
                         final isVerified = await showPinVerificationDialog(
-                          context, 
-                          reason: 'membatalkan status darurat'
+                          context,
+                          reason: 'membatalkan status darurat',
                         );
-                        
+
                         if (isVerified) {
-                          await ref.read(distressControllerProvider.notifier).stop();
+                          if (emergencyState.isActive) {
+                            ref.read(emergencyProvider.notifier).markAsSafe();
+                          } else {
+                            await ref
+                                .read(distressControllerProvider.notifier)
+                                .stop();
+                          }
                         }
                         return;
                       }
 
-                      // Kalau lagi mati, nyalain SOS
-                      final currentLocation = ref.read(liveLocationProvider).value;
+                      // Mulai langsung dari fase kontak darurat.
+                      final currentLocation = ref
+                          .read(liveLocationProvider)
+                          .value;
                       if (currentLocation == null) {
                         _showDistressMessage(
-                          _locationUnavailableMessage(ref.read(liveLocationProvider)),
+                          _locationUnavailableMessage(
+                            ref.read(liveLocationProvider),
+                          ),
                           isError: true,
                         );
                         return;
                       }
-                      
-                      await ref.read(distressControllerProvider.notifier).start(currentLocation);
+
+                      ref
+                          .read(emergencyProvider.notifier)
+                          .triggerEmergencyNow();
                     },
-              backgroundColor: distressState.isActive ? Colors.grey : Colors.red,
+              backgroundColor: distressState.isActive || emergencyState.isActive
+                  ? Colors.grey
+                  : Colors.red,
               foregroundColor: Colors.white,
               elevation: 4,
               icon: distressState.isLoading
                   ? const SizedBox.square(
                       dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
                     )
                   : const Icon(Icons.sos_rounded, size: 28),
               label: Text(
-                distressState.isActive ? "HENTIKAN SOS" : "DARURAT",
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                distressState.isActive || emergencyState.isActive
+                    ? "HENTIKAN SOS"
+                    : "DARURAT",
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
             ),
           ),

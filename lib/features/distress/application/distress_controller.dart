@@ -169,6 +169,55 @@ class DistressController extends Notifier<DistressState> {
     }
   }
 
+  Future<bool> escalateToNearbyHelpers() async {
+    if (state.isLoading) return false;
+    final sessionId = state.activeSessionId;
+    if (sessionId == null) {
+      final locationState = ref.read(liveLocationProvider);
+      final location = locationState.value;
+      if (location == null) {
+        state = DistressState(
+          feedbackMessage: locationState.error?.toString().toLowerCase().contains(
+                    'denied',
+                  ) ==
+                  true
+              ? 'Izin lokasi diperlukan untuk menghubungi pengguna sekitar.'
+              : 'Lokasi terkini belum tersedia. Silakan coba lagi.',
+          feedbackIsError: true,
+        );
+        return false;
+      }
+      await start(location);
+      return state.isActive;
+    }
+
+    state = DistressState(isLoading: true, activeSessionId: sessionId);
+    try {
+      await ref
+          .read(distressRepositoryProvider)
+          .escalateToNearbyHelpers(sessionId);
+      state = DistressState(
+        activeSessionId: sessionId,
+        feedbackMessage: 'Sinyal darurat diperluas ke helper aktif di sekitar.',
+      );
+      return true;
+    } on DistressDataException catch (error) {
+      state = DistressState(
+        activeSessionId: sessionId,
+        feedbackMessage: error.message,
+        feedbackIsError: true,
+      );
+      return false;
+    } on Object {
+      state = DistressState(
+        activeSessionId: sessionId,
+        feedbackMessage: 'Pengguna sekitar belum dapat dihubungi.',
+        feedbackIsError: true,
+      );
+      return false;
+    }
+  }
+
   Future<void> stop() async {
     final sessionId = state.activeSessionId;
     if (sessionId == null || state.isLoading) return;

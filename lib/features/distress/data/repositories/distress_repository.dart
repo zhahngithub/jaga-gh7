@@ -155,6 +155,19 @@ class DistressRepository {
     }
   }
 
+  Future<void> escalateToNearbyHelpers(String sessionId) async {
+    try {
+      await _firestore.collection('distressSessions').doc(sessionId).update(
+        <String, Object>{
+          'audience': 'nearby_helper',
+          'updatedAt': FieldValue.serverTimestamp(),
+        },
+      );
+    } on FirebaseException catch (error) {
+      throw DistressDataException(_messageForFirestoreError(error));
+    }
+  }
+
   Future<void> stopSession(String sessionId) async {
     try {
       await _firestore.collection('distressSessions').doc(sessionId).update(

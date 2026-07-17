@@ -30,7 +30,6 @@ class _NearbyNotifiedDialogState extends ConsumerState<NearbyNotifiedDialog> {
 
     final messenger = ScaffoldMessenger.of(context);
     ref.read(emergencyProvider.notifier).markAsSafe();
-    Navigator.of(context).pop();
     messenger.showSnackBar(
       const SnackBar(
         content: Text(
@@ -44,6 +43,8 @@ class _NearbyNotifiedDialogState extends ConsumerState<NearbyNotifiedDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final seconds = ref.watch(emergencyProvider).secondsRemaining ?? 0;
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       child: Padding(
@@ -66,7 +67,8 @@ class _NearbyNotifiedDialogState extends ConsumerState<NearbyNotifiedDialog> {
             const SizedBox(height: 8),
 
             Text(
-              "Seluruh pengguna di ${widget.radiusInMeters}m sekitarmu telah diberitahu keadaan daruratmu.",
+              'Seluruh pengguna di ${widget.radiusInMeters}m sekitarmu telah '
+              'diberi tahu. Polisi terdekat akan dihubungi dalam $seconds detik.',
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
@@ -74,25 +76,6 @@ class _NearbyNotifiedDialogState extends ConsumerState<NearbyNotifiedDialog> {
             ),
             const SizedBox(height: 32),
 
-            // Acknowledge Button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: const Text("Mengerti"),
-              ),
-            ),
-            const SizedBox(height: 12),
             // Cancel Button
             SizedBox(
               width: double.infinity,
