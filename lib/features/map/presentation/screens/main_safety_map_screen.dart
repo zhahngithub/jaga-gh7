@@ -450,6 +450,80 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     return minDistance;
   }
 
+  // Menu pilihan saat map di-klik
+  void _showMapActionMenu(LatLng location) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade400,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.report_problem_rounded, color: Colors.orange),
+              title: const Text('Lapor Lokasi'),
+              subtitle: const Text('Tambahkan laporan bahaya atau aman di titik ini'),
+              onTap: () {
+                Navigator.pop(context); // Tutup menu
+                _openReportSheet(location); // Buka form report
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.directions_walk, color: Colors.blueAccent),
+              title: const Text('Jadikan Tujuan'),
+              subtitle: const Text('Arahkan rute navigasi ke titik ini'),
+              onTap: () {
+                Navigator.pop(context); // Tutup menu
+                ref.read(destinationProvider.notifier).updateLocation(location);
+                // Snap kamera HANYA SEKALI pas tujuan dipilih
+                _mapController.move(location, 15.0); 
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Logika asli form report yang dipindah ke function terpisah
+  void _openReportSheet(LatLng location) async {
+    FocusScope.of(context).unfocus();
+    ref.read(searchResultsVisibleProvider.notifier).hide();
+    _reportSheetTop = null;
+    ref.read(draftLocationProvider.notifier).setLocation(location);
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        barrierColor: Colors.transparent,
+        builder: (_) => _ReportSheetBoundsObserver(
+          onTopChanged: _handleReportSheetTopChanged,
+          child: ReportBottomSheet(location: location),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        _reportSheetTop = null;
+        ref.read(draftLocationProvider.notifier).clear();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // pake provider buat gps
@@ -561,40 +635,13 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                 _lastObservedRotation = _mapController.camera.rotation;
               },
               onPositionChanged: _handleMapPositionChanged,
-              onTap: (_, location) async {
-                debugPrint(
-                  'MAP REPORT TAP: '
-                  '${location.latitude}, ${location.longitude}',
-                );
+              onTap: (_, location) {
                 FocusScope.of(context).unfocus();
-                ref.read(searchResultsVisibleProvider.notifier).hide();
-                _reportSheetTop = null;
-                ref.read(draftLocationProvider.notifier).setLocation(location);
-
-                try {
-                  await showModalBottomSheet<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    useSafeArea: true,
-                    barrierColor: Colors.transparent,
-                    builder: (_) => _ReportSheetBoundsObserver(
-                      onTopChanged: _handleReportSheetTopChanged,
-                      child: ReportBottomSheet(location: location),
-                    ),
-                  );
-                } finally {
-                  if (mounted) {
-                    _reportSheetTop = null;
-                    ref.read(draftLocationProvider.notifier).clear();
-                  }
-                }
+                _showMapActionMenu(location);
               },
               onLongPress: (_, location) {
-                // tutup keyboard kalau kebuka
                 FocusScope.of(context).unfocus();
-                
-                // update provider tujuan ke titik yang ditekan
-                ref.read(destinationProvider.notifier).updateLocation(location);
+                _showMapActionMenu(location);
               },
             ),
             children: [
@@ -659,9 +706,6 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                   // pindah kamera pas pertama load
                   if (!_hasInitialCameraMoved) {
                     _hasInitialCameraMoved = true;
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _mapController.move(currentPosition, 15.0);
-                    });
                   }
 
                   // 1. cek kalau user udah cari tujuan
