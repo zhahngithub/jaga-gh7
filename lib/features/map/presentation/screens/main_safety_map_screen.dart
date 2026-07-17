@@ -288,6 +288,22 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     }
   }
 
+  // dangerous route 100 meter
+  bool _isRouteDangerous(List<LatLng> route, List<Report> hazards) {
+    final distanceCalc = const Distance();
+    for (final point in route) {
+      for (final hazard in hazards) {
+        final dist = distanceCalc.as(
+          LengthUnit.Meter, 
+          point, 
+          LatLng(hazard.location.latitude, hazard.location.longitude)
+        );
+        if (dist <= 100.0) return true;
+      }
+    }
+    return false;
+  }
+
   // red blue route
   List<Polyline> _buildColoredRoute(List<LatLng> routePoints, List<Report> hazards) {
     if (routePoints.isEmpty) return [];
@@ -358,11 +374,6 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     final draftLocation = ref.watch(draftLocationProvider);
     final reportsAsync = ref.watch(visibleReportsProvider);
     final visibleReports = reportsAsync.value ?? const <Report>[];
-
-    // dangerous route
-    final routePoints = ref.watch(routeProvider);
-    final hazards = visibleReports.where((r) => r.reportType != 'protective').toList();
-    final coloredRouteLines = _buildColoredRoute(routePoints, hazards);
 
     // Listener for showing the pop up after certain time countdown
     ref.listen<EmergencyStatus>(emergencyProvider, (previous, next) {
@@ -436,18 +447,32 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
 
               // layer buat gambar garis rute
               PolylineLayer(
-                // polylines: [
-                //   // cuman draw kalau ga kosong, soalnya error dia kalau ga gini
-                //   if (ref.watch(routeProvider).isNotEmpty)
-                //     Polyline(
-                //       points: ref.watch(routeProvider),
-                //       strokeWidth: 5.0,
-                //       color: Colors.blueAccent,
-                //     ),
-                // ],
+                polylines: () {
+                  final routeState = ref.watch(routeProvider);
+                  final hazards = visibleReports
+                      .where((r) => r.reportType != 'protective')
+                      .toList();
 
-                // tes draw line danger
-                polylines: coloredRouteLines,
+                  // 1. Gambar rute utama (dipotong jadi merah kalau bahaya)
+                  List<Polyline> allLines = List.from(
+                    _buildColoredRoute(routeState.mainRoute, hazards)
+                  );
+
+                  // 2. Kalau ada rute aman alternatif, tumpuk di atasnya
+                  if (routeState.safeRoute.isNotEmpty) {
+                    allLines.add(
+                      Polyline(
+                        points: routeState.safeRoute,
+                        strokeWidth: 6.0,
+                        color: Colors.lightBlueAccent, // Warna beda buat rute aman
+                        borderColor: Colors.blue.shade900,
+                        borderStrokeWidth: 2.0,
+                      ),
+                    );
+                  }
+                  
+                  return allLines;
+                }(),
               ),
 
               // lingkaran tiap marker
@@ -749,33 +774,43 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                   // tombol debug buat tes rute
                   ElevatedButton(
                     onPressed: () async {
-                      // ambil gps sekarang sama lokasi tujuan dari riverpod
-                      final currentPosition = ref
-                          .read(liveLocationProvider)
-                          .value;
+                      final currentPosition = ref.read(liveLocationProvider).value;
                       final destinationPosition = ref.read(destinationProvider);
 
-                      // pastikan dua-duanya ga kosong
-                      if (currentPosition != null &&
-                          destinationPosition != null) {
-                        // hit api ors
-                        final routePoints = await RoutingService.getRoute(
+                      if (currentPosition != null && destinationPosition != null) {
+                        
+                        final hazards = visibleReports
+                            .where((report) => report.reportType != 'protective')
+                            .toList();
+
+                        // 1. Ambil rute normal (tanpa ngehindari apapun)
+                        final mainRoute = await RoutingService.getRoute(
                           currentPosition,
                           destinationPosition,
                         );
 
-                        // update state biar polyline ke-gambar
-                        ref
-                            .read(routeProvider.notifier)
-                            .updateRoute(routePoints);
+                        // 2. Cek apakah rute normal ini bahaya?
+                        bool isDangerous = _isRouteDangerous(mainRoute, hazards);
+                        List<LatLng> safeRoute = [];
+
+                        // 3. Kalau bahaya, hit API kedua kali buat cari jalan memutar
+                        if (isDangerous) {
+                          safeRoute = await RoutingService.getRoute(
+                            currentPosition,
+                            destinationPosition,
+                            hazards: hazards, // Paksa API hindari kotak merah
+                          );
+                        }
+
+                        // 4. Simpan dua-duanya ke state
+                        ref.read(routeProvider.notifier).updateRoutes(
+                          main: mainRoute,
+                          safe: safeRoute,
+                        );
+
                       } else {
-                        // error handling kalau belum pilih tujuan atau gps belum dapet
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              'Wait for GPS and select a destination first',
-                            ),
-                          ),
+                          const SnackBar(content: Text('Wait for GPS and select a destination first')),
                         );
                       }
                     },
