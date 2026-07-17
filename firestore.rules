@@ -111,6 +111,78 @@ service cloud.firestore {
       }
     }
 
+    match /distressSessions/{sessionId} {
+      allow read: if request.auth != null
+        && (
+          request.auth.uid == resource.data.senderUid
+          || (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(
+              /databases/$(database)/documents/users/$(request.auth.uid)
+            ).data.helperModeEnabled == true
+          )
+        );
+
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasAll([
+          'senderUid',
+          'recipientUids',
+          'senderDisplayName',
+          'audience',
+          'status',
+          'preciseLocation',
+          'createdAt',
+          'updatedAt',
+          'expiresAt'
+        ])
+        && request.resource.data.keys().hasOnly([
+          'senderUid',
+          'recipientUids',
+          'senderDisplayName',
+          'audience',
+          'status',
+          'preciseLocation',
+          'createdAt',
+          'updatedAt',
+          'expiresAt'
+        ])
+        && request.resource.data.senderUid == request.auth.uid
+        && request.resource.data.recipientUids is list
+        && request.resource.data.recipientUids.size() == 0
+        && request.resource.data.senderDisplayName is string
+        && request.resource.data.senderDisplayName.size() > 0
+        && request.resource.data.senderDisplayName.size() <= 80
+        && request.resource.data.audience == 'nearby_helper'
+        && request.resource.data.status == 'active'
+        && request.resource.data.preciseLocation is latlng
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.expiresAt is timestamp;
+
+      allow update: if request.auth != null
+        && resource.data.senderUid == request.auth.uid
+        && resource.data.status == 'active'
+        && request.resource.data.status == 'active'
+        && request.resource.data.preciseLocation is latlng
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'preciseLocation',
+          'updatedAt'
+        ]);
+
+      allow update: if request.auth != null
+        && resource.data.senderUid == request.auth.uid
+        && resource.data.status == 'active'
+        && request.resource.data.status == 'ended'
+        && request.resource.data.updatedAt == request.time
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'status',
+          'updatedAt'
+        ]);
+
+      allow delete: if false;
+    }
+
     match /reports/{reportId} {
       allow read: if request.auth != null;
 
