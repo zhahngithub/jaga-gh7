@@ -13,6 +13,7 @@ import 'package:jaga/features/map/presentation/widgets/nearby_notified_dialog.da
 import 'package:jaga/features/map/presentation/widgets/police_notified_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/safety_check_dialog.dart';
 import 'package:jaga/features/notifications/application/notification_routing_controller.dart';
+import 'package:jaga/features/profile/presentation/widgets/community_gratitude_dialog.dart';
 import 'package:jaga/features/reports/application/report_controller.dart';
 import 'package:jaga/features/reports/data/models/report.dart';
 import 'package:jaga/features/reports/presentation/widgets/report_bottom_sheet.dart';
@@ -52,6 +53,7 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
   bool _isCorrectingDraftCamera = false;
   bool _draftRecenterScheduled = false;
   bool _notificationNavigationScheduled = false;
+  bool _isCommunityGratitudePopupOpen = false;
   String? _centeredDistressSessionId;
   double? _reportSheetTop;
   double? _lastObservedRotation;
@@ -150,6 +152,21 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
         );
       },
     );
+  }
+
+  Future<void> _showCommunityGratitudePopup() async {
+    if (_isCommunityGratitudePopupOpen) return;
+    _isCommunityGratitudePopupOpen = true;
+
+    try {
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const CommunityGratitudeDialog(),
+      );
+    } finally {
+      _isCommunityGratitudePopupOpen = false;
+    }
   }
 
   void _schedulePendingNotificationNavigation() {
@@ -968,6 +985,16 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                     },
                     icon: const Icon(Icons.bug_report),
                     label: const Text("DEBUG: Test Police Notified Popup"),
+                  ),
+
+                  ElevatedButton.icon(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.orange,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: _showCommunityGratitudePopup,
+                    icon: const Icon(Icons.bug_report),
+                    label: const Text("DEBUG: Test Gratitude Popup"),
                   ),
 
                   ElevatedButton.icon(
