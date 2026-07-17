@@ -59,21 +59,21 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
                 onPressed: isLoading
                     ? null
                     : () async {
-                  final started = await ref
-                      .read(distressControllerProvider.notifier)
-                      .startTrustedContactDistress();
+                        final started = await ref
+                            .read(distressControllerProvider.notifier)
+                            .startTrustedContactDistress();
 
-                  if (!context.mounted || !started) return;
-                  Navigator.of(context).pop();
-                },
+                        if (!context.mounted || !started) return;
+                        Navigator.of(context).pop();
+                      },
                 child: isLoading
                     ? const SizedBox.square(
-                  dimension: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: Colors.white,
-                  ),
-                )
+                        dimension: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
                     : const Text("Mengerti"),
               ),
             ),
@@ -92,34 +92,25 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
                 ),
                 onPressed: isLoading
                     ? null
-                    : () {
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (pinContext) => PinVerificationDialog(
-                      onSuccess: () {
-                        // Close the PIN Dialog
-                        Navigator.of(pinContext).pop();
-                        // Close the Emergency Dialog
-                        Navigator.of(context).pop();
+                    : () async {
+                        final verified = await showPinVerificationDialog(
+                          context,
+                        );
+                        if (!context.mounted || !verified) return;
 
+                        final messenger = ScaffoldMessenger.of(context);
                         ref.read(emergencyProvider.notifier).markAsSafe();
-
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        Navigator.of(context).pop();
+                        messenger.showSnackBar(
                           const SnackBar(
                             content: Text(
                               "Status darurat berhasil dibatalkan.",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                              ),
+                              style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                             backgroundColor: AppColors.primary,
                           ),
                         );
                       },
-                    ),
-                  );
-                },
                 child: Text(
                   "Batalkan, aku aman.",
                   style: Theme.of(
