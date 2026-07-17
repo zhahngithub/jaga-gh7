@@ -11,7 +11,7 @@ String mapPinFailure(
     case PinErrorCode.noAuthenticatedUid:
       return 'Sesi kamu telah berakhir. Silakan masuk kembali.';
     case PinErrorCode.pinNotConfigured:
-      return 'PIN belum dikonfigurasi di perangkat ini.';
+      return 'PIN keamanan belum dibuat untuk akun ini.';
     case PinErrorCode.invalidPin:
       return 'PIN harus terdiri dari 4 angka.';
     case PinErrorCode.weakPin:

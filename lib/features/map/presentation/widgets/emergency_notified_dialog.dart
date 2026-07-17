@@ -4,11 +4,45 @@ import 'package:jaga/core/theme/app_colors.dart';
 import 'package:jaga/features/map/application/emergency_service.dart';
 import 'package:jaga/features/map/presentation/widgets/pin_verification_dialog.dart';
 
-class EmergencyNotifiedDialog extends ConsumerWidget {
+class EmergencyNotifiedDialog extends ConsumerStatefulWidget {
   const EmergencyNotifiedDialog({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<EmergencyNotifiedDialog> createState() =>
+      _EmergencyNotifiedDialogState();
+}
+
+class _EmergencyNotifiedDialogState
+    extends ConsumerState<EmergencyNotifiedDialog> {
+  bool _isVerifyingPin = false;
+
+  Future<void> _cancelEmergency() async {
+    if (_isVerifyingPin) return;
+    setState(() => _isVerifyingPin = true);
+
+    final verified = await showPinVerificationDialog(context);
+    if (!mounted) return;
+    if (!verified) {
+      setState(() => _isVerifyingPin = false);
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    ref.read(emergencyProvider.notifier).markAsSafe();
+    Navigator.of(context).pop();
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Status darurat berhasil dibatalkan.',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: AppColors.primary,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       child: Padding(
@@ -69,28 +103,7 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (pinContext) => PinVerificationDialog(
-                      onSuccess: () {
-                        Navigator.of(pinContext).pop();
-                        Navigator.of(context).pop();
-                        ref.read(emergencyProvider.notifier).markAsSafe();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              "Status darurat berhasil dibatalkan.", 
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            backgroundColor: AppColors.primary, 
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                },
+                onPressed: _isVerifyingPin ? null : _cancelEmergency,
                 child: Text(
                   "Batalkan, aku aman.",
                   style: Theme.of(

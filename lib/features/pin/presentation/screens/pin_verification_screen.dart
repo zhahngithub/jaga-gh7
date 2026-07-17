@@ -3,11 +3,11 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../auth/application/auth_providers.dart';
 import '../../../auth/presentation/widgets/auth_form_widgets.dart';
 import '../../../auth/presentation/widgets/auth_page_scaffold.dart';
 import '../../application/pin_validation.dart';
 import '../../application/pin_verification_controller.dart';
+import '../../application/pin_providers.dart';
 import '../widgets/pin_input_field.dart';
 
 class PinVerificationScreen extends ConsumerStatefulWidget {
@@ -53,7 +53,7 @@ class _PinVerificationScreenState extends ConsumerState<PinVerificationScreen> {
     super.dispose();
   }
 
-  String? get _uid => ref.read(firebaseAuthProvider).currentUser?.uid;
+  String? get _uid => ref.read(currentPinUserIdProvider);
 
   Future<void> _inspectAttempts() async {
     ref.read(pinVerificationControllerProvider.notifier).clearMessage();
@@ -100,6 +100,10 @@ class _PinVerificationScreenState extends ConsumerState<PinVerificationScreen> {
   void _startLockoutTimer(DateTime? lockoutUntil) {
     _lockoutTimer?.cancel();
     _lockoutUntil = lockoutUntil;
+    if (lockoutUntil == null) {
+      setState(() => _remainingSeconds = 0);
+      return;
+    }
     _updateRemainingLockout();
     if (_remainingSeconds == 0) {
       return;

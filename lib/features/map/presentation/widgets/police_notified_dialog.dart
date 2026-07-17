@@ -4,13 +4,46 @@ import 'package:jaga/core/theme/app_colors.dart';
 import 'package:jaga/features/map/application/emergency_service.dart';
 import 'package:jaga/features/map/presentation/widgets/pin_verification_dialog.dart';
 
-class PoliceNotifiedDialog extends ConsumerWidget {
+class PoliceNotifiedDialog extends ConsumerStatefulWidget {
   final String policeStationName;
 
   const PoliceNotifiedDialog({super.key, required this.policeStationName});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PoliceNotifiedDialog> createState() =>
+      _PoliceNotifiedDialogState();
+}
+
+class _PoliceNotifiedDialogState extends ConsumerState<PoliceNotifiedDialog> {
+  bool _isVerifyingPin = false;
+
+  Future<void> _cancelEmergency() async {
+    if (_isVerifyingPin) return;
+    setState(() => _isVerifyingPin = true);
+
+    final verified = await showPinVerificationDialog(context);
+    if (!mounted) return;
+    if (!verified) {
+      setState(() => _isVerifyingPin = false);
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    ref.read(emergencyProvider.notifier).markAsSafe();
+    Navigator.of(context).pop();
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Status darurat berhasil dibatalkan.',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: AppColors.primary,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       child: Padding(
@@ -33,7 +66,7 @@ class PoliceNotifiedDialog extends ConsumerWidget {
             const SizedBox(height: 8),
 
             Text(
-              "Kami telah menginformasikan kantor polisi $policeStationName terkait situasimu.",
+              "Kami telah menginformasikan kantor polisi ${widget.policeStationName} terkait situasimu.",
               style: Theme.of(
                 context,
               ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
@@ -71,28 +104,7 @@ class PoliceNotifiedDialog extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (pinContext) => PinVerificationDialog(
-                      onSuccess: () {
-                        Navigator.of(pinContext).pop();
-                        Navigator.of(context).pop();
-                        ref.read(emergencyProvider.notifier).markAsSafe();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text(
-                              "Status darurat berhasil dibatalkan.", 
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
-                            backgroundColor: AppColors.primary, 
-                          ),
-                        );
-                      },
-                    ),
-                  );
-                },
+                onPressed: _isVerifyingPin ? null : _cancelEmergency,
                 child: Text(
                   "Batalkan, aku aman.",
                   style: Theme.of(
