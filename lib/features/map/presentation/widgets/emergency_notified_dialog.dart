@@ -82,19 +82,10 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
                   );
                 },
                 child: Text(
-<<<<<<< HEAD
                   "Batalkan, aku aman.",
                   style: Theme.of(
                     context,
                   ).textTheme.labelLarge?.copyWith(color: Colors.grey),
-=======
-                  "Batalkan, aku aman", 
-                  style: TextStyle(
-                    fontSize: 16, 
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey, 
-                  ),
->>>>>>> 2081b8d7c6ae672461c67c0e626a3b1a296a183e
                 ),
               ),
             ),

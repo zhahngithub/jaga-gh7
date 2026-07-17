@@ -96,41 +96,6 @@ class NearbyNotifiedDialog extends ConsumerWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 12),
-            // Cancel Button
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: BorderSide(color: Colors.grey),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                onPressed: () {
-                  ref.read(emergencyProvider.notifier).markAsSafe();
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        "Status darurat dibatalkan.",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                },
-                child: Text(
-                  "Batalkan, aku aman",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey,
-                  ),
-                ),
-              ),
-            ),
           ],
         ),
       ),

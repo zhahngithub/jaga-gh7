@@ -70,19 +70,10 @@ class SafetyCheckDialog extends ConsumerWidget {
                   ref.read(emergencyProvider.notifier).markAsSafe();
                 },
                 child: Text(
-<<<<<<< HEAD
                   "Tidak, aku aman.",
                   style: Theme.of(
                     context,
                   ).textTheme.labelLarge?.copyWith(color: Colors.grey),
-=======
-                  "Tidak, aku aman", 
-                  style: TextStyle(
-                    fontSize: 16, 
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey, 
-                  ),
->>>>>>> 2081b8d7c6ae672461c67c0e626a3b1a296a183e
                 ),
               ),
             ),

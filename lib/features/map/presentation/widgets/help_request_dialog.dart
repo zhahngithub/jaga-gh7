@@ -15,43 +15,25 @@ class HelpRequestDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-<<<<<<< HEAD
-            const Icon(Icons.sos_rounded, size: 80, color: AppColors.primary),
-            const SizedBox(height: 16),
+            const Icon(
+              Icons.warning_amber_rounded,
+              size: 100,
+              color: Colors.red,
+            ),
+            const SizedBox(height: 8),
 
             Text(
               "Seseorang membutuhkan bantuanmu!",
               style: Theme.of(context).textTheme.titleLarge,
-=======
-            const Icon(Icons.warning_amber_rounded, size: 100, color: Colors.red), 
-            const SizedBox(height: 8),
-            
-            const Text(
-              "Seseorang membutuhkan bantuanmu!", 
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                height: 1.1,
-              ),
->>>>>>> 2081b8d7c6ae672461c67c0e626a3b1a296a183e
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 8),
 
             Text(
-<<<<<<< HEAD
               "Seorang pengguna $distanceInMeters meter dari kamu sedang dalam bahaya.",
               style: Theme.of(
                 context,
               ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
-=======
-              "Seorang pengguna $distanceInMeters meter dari lokasimu sedang dalam bahaya.",
-              style: const TextStyle(
-                fontSize: 16, 
-                color: Colors.grey,
-                height: 1.2,
-              ),
->>>>>>> 2081b8d7c6ae672461c67c0e626a3b1a296a183e
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
@@ -61,11 +43,7 @@ class HelpRequestDialog extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-<<<<<<< HEAD
-                  backgroundColor: AppColors.primary,
-=======
-                  backgroundColor: Colors.red, 
->>>>>>> 2081b8d7c6ae672461c67c0e626a3b1a296a183e
+                  backgroundColor: Colors.red,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
