@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jaga/core/theme/app_colors.dart';
+import 'package:jaga/features/distress/application/distress_controller.dart';
 import 'package:jaga/features/map/application/emergency_service.dart';
 import 'package:jaga/features/map/presentation/widgets/pin_verification_dialog.dart';
 
@@ -9,6 +10,10 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the distress state for loading indicators
+    final distressState = ref.watch(distressControllerProvider);
+    final isLoading = distressState.isLoading;
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       child: Padding(
@@ -31,10 +36,10 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
             const SizedBox(height: 8),
 
             Text(
-              "Kami telah mengirim notifikasi dan live location kamu ke kontak darurat.",
+              "Tekan Mengerti untuk mengirim notifikasi dan live location kamu ke kontak darurat.",
               style: Theme.of(
                 context,
-              ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
@@ -51,46 +56,61 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                },
-                child: const Text("Mengerti"),
+                onPressed: isLoading
+                    ? null
+                    : () async {
+                        final started = await ref
+                            .read(distressControllerProvider.notifier)
+                            .startTrustedContactDistress();
+
+                        if (!context.mounted || !started) return;
+                        Navigator.of(context).pop();
+                      },
+                child: isLoading
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text("Mengerti"),
               ),
             ),
             const SizedBox(height: 12),
+
             // Cancel Button
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  side: BorderSide(color: Colors.grey),
+                  side: const BorderSide(color: Colors.grey),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: () {
-                  showDialog(
-                    context: context,
-                    barrierDismissible: false,
-                    builder: (pinContext) => PinVerificationDialog(
-                      onSuccess: () {
-                        Navigator.of(pinContext).pop();
-                        Navigator.of(context).pop();
+                onPressed: isLoading
+                    ? null
+                    : () async {
+                        final verified = await showPinVerificationDialog(
+                          context,
+                        );
+                        if (!context.mounted || !verified) return;
+
+                        final messenger = ScaffoldMessenger.of(context);
                         ref.read(emergencyProvider.notifier).markAsSafe();
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        Navigator.of(context).pop();
+                        messenger.showSnackBar(
                           const SnackBar(
                             content: Text(
-                              "Status darurat berhasil dibatalkan.", 
+                              "Status darurat berhasil dibatalkan.",
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
-                            backgroundColor: AppColors.primary, 
+                            backgroundColor: AppColors.primary,
                           ),
                         );
                       },
-                    ),
-                  );
-                },
                 child: Text(
                   "Batalkan, aku aman.",
                   style: Theme.of(

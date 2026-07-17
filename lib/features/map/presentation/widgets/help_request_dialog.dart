@@ -3,8 +3,9 @@ import 'package:jaga/core/theme/app_colors.dart';
 
 class HelpRequestDialog extends StatelessWidget {
   final int distanceInMeters;
+  final VoidCallback onSeeLocation;
 
-  const HelpRequestDialog({super.key, required this.distanceInMeters});
+  const HelpRequestDialog({super.key, required this.distanceInMeters, required this.onSeeLocation,});
 
   @override
   Widget build(BuildContext context) {
@@ -33,12 +34,12 @@ class HelpRequestDialog extends StatelessWidget {
               "Seorang pengguna $distanceInMeters meter dari kamu sedang dalam bahaya.",
               style: Theme.of(
                 context,
-              ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
 
-            // TOOD: Can also show location once location is implemented
+            // Showing the user in danger location
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
@@ -52,8 +53,7 @@ class HelpRequestDialog extends StatelessWidget {
                 ),
                 onPressed: () {
                   Navigator.of(context).pop();
-                  // TODO: Give the user in danger location
-                  print("Opening victim's location...");
+                  onSeeLocation();
                 },
                 child: const Text("Lihat Lokasi"),
               ),
@@ -73,6 +73,7 @@ class HelpRequestDialog extends StatelessWidget {
                 ),
                 onPressed: () {
                   Navigator.of(context).pop();
+                  onSeeLocation();
                 },
                 child: Text(
                   "Tutup",

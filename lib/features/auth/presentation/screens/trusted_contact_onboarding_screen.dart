@@ -69,7 +69,7 @@ class _TrustedContactOnboardingScreenState
       ),
       title: 'Siapa yang kamu percaya?',
       subtitle:
-          'Langkah 2 dari 2 · Tambahkan minimal satu kontak darurat sebelum mulai menggunakan peta.',
+          'Langkah 2 dari 3 \u00B7 Tambahkan minimal satu kontak darurat sebelum membuat PIN keamanan.',
       child: Form(
         key: _formKey,
         child: Column(

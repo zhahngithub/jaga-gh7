@@ -71,7 +71,9 @@ final notificationCoordinatorProvider =
 class NotificationCoordinator extends Notifier<bool> {
   final List<StreamSubscription<Object?>> _subscriptions = [];
   StreamSubscription<bool>? _helperModeSubscription;
-  StreamSubscription<Map<String, dynamic>>? _distressAlertSubscription;
+  StreamSubscription<Map<String, dynamic>>? _nearbyHelperAlertSubscription;
+  StreamSubscription<Map<String, dynamic>>? _trustedContactAlertSubscription;
+  final Set<String> _notifiedSessionIds = <String>{};
   bool _initializing = false;
 
   @override
@@ -81,7 +83,8 @@ class NotificationCoordinator extends Notifier<bool> {
         unawaited(subscription.cancel());
       }
       unawaited(_helperModeSubscription?.cancel());
-      unawaited(_distressAlertSubscription?.cancel());
+      unawaited(_nearbyHelperAlertSubscription?.cancel());
+      unawaited(_trustedContactAlertSubscription?.cancel());
     });
     return false;
   }
@@ -115,21 +118,33 @@ class NotificationCoordinator extends Notifier<bool> {
 
   void _handleAuthenticationChange(String? uid) {
     unawaited(_helperModeSubscription?.cancel());
-    unawaited(_distressAlertSubscription?.cancel());
+    unawaited(_nearbyHelperAlertSubscription?.cancel());
+    unawaited(_trustedContactAlertSubscription?.cancel());
     _helperModeSubscription = null;
-    _distressAlertSubscription = null;
+    _nearbyHelperAlertSubscription = null;
+    _trustedContactAlertSubscription = null;
+    _notifiedSessionIds.clear();
     if (uid == null) return;
     final alertsAfter = DateTime.now();
     final repository = ref.read(notificationMessagingRepositoryProvider);
+    _trustedContactAlertSubscription = repository
+        .watchNewTrustedContactAlerts(uid: uid, after: alertsAfter)
+        .listen((data) => _showAlertOnce(uid, data));
     _helperModeSubscription = repository.watchHelperMode(uid).listen((enabled) {
-      unawaited(_distressAlertSubscription?.cancel());
-      _distressAlertSubscription = null;
+      unawaited(_nearbyHelperAlertSubscription?.cancel());
+      _nearbyHelperAlertSubscription = null;
       if (!enabled || repository.currentUid != uid) return;
-      _distressAlertSubscription = repository
-          .watchNewDistressAlerts(uid: uid, after: alertsAfter)
-          .listen((data) {
-            unawaited(repository.showLocalDistressAlert(data));
-          });
+      _nearbyHelperAlertSubscription = repository
+          .watchNewNearbyHelperAlerts(uid: uid, after: alertsAfter)
+          .listen((data) => _showAlertOnce(uid, data));
     });
+  }
+
+  void _showAlertOnce(String uid, Map<String, dynamic> data) {
+    final repository = ref.read(notificationMessagingRepositoryProvider);
+    final sessionId = data['sessionId'];
+    if (repository.currentUid != uid || sessionId is! String) return;
+    if (!_notifiedSessionIds.add(sessionId)) return;
+    unawaited(repository.showLocalDistressAlert(data));
   }
 }

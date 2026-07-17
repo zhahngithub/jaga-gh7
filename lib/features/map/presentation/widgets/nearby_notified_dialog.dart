@@ -2,14 +2,48 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jaga/core/theme/app_colors.dart';
 import 'package:jaga/features/map/application/emergency_service.dart';
+import 'package:jaga/features/map/presentation/widgets/pin_verification_dialog.dart';
 
-class NearbyNotifiedDialog extends ConsumerWidget {
+class NearbyNotifiedDialog extends ConsumerStatefulWidget {
   final int radiusInMeters;
 
   const NearbyNotifiedDialog({super.key, this.radiusInMeters = 500});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NearbyNotifiedDialog> createState() =>
+      _NearbyNotifiedDialogState();
+}
+
+class _NearbyNotifiedDialogState extends ConsumerState<NearbyNotifiedDialog> {
+  bool _isVerifyingPin = false;
+
+  Future<void> _cancelEmergency() async {
+    if (_isVerifyingPin) return;
+    setState(() => _isVerifyingPin = true);
+
+    final verified = await showPinVerificationDialog(context);
+    if (!mounted) return;
+    if (!verified) {
+      setState(() => _isVerifyingPin = false);
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    ref.read(emergencyProvider.notifier).markAsSafe();
+    Navigator.of(context).pop();
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Status darurat berhasil dibatalkan.',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: AppColors.primary,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       child: Padding(
@@ -32,10 +66,10 @@ class NearbyNotifiedDialog extends ConsumerWidget {
             const SizedBox(height: 8),
 
             Text(
-              "Seluruh pengguna di ${radiusInMeters}m sekitarmu telah diberitahu keadaan daruratmu.",
+              "Seluruh pengguna di ${widget.radiusInMeters}m sekitarmu telah diberitahu keadaan daruratmu.",
               style: Theme.of(
                 context,
-              ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
@@ -55,10 +89,7 @@ class NearbyNotifiedDialog extends ConsumerWidget {
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
-                child: const Text(
-                  "Mengerti",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+                child: const Text("Mengerti"),
               ),
             ),
             const SizedBox(height: 12),
@@ -73,26 +104,12 @@ class NearbyNotifiedDialog extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                onPressed: () {
-                  ref.read(emergencyProvider.notifier).markAsSafe();
-                  Navigator.of(context).pop();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        "Status darurat dibatalkan.",
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                },
+                onPressed: _isVerifyingPin ? null : _cancelEmergency,
                 child: Text(
-                  "Batalkan, aku aman",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.grey,
-                  ),
+                  "Batalkan, aku aman.",
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(color: Colors.grey),
                 ),
               ),
             ),

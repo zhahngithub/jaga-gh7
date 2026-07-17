@@ -116,7 +116,13 @@ service cloud.firestore {
         && (
           request.auth.uid == resource.data.senderUid
           || (
-            exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            resource.data.audience == 'trusted_contact'
+            && resource.data.recipientUids is list
+            && request.auth.uid in resource.data.recipientUids
+          )
+          || (
+            resource.data.audience == 'nearby_helper'
+            && exists(/databases/$(database)/documents/users/$(request.auth.uid))
             && get(
               /databases/$(database)/documents/users/$(request.auth.uid)
             ).data.helperModeEnabled == true
@@ -148,11 +154,27 @@ service cloud.firestore {
         ])
         && request.resource.data.senderUid == request.auth.uid
         && request.resource.data.recipientUids is list
-        && request.resource.data.recipientUids.size() == 0
+        && request.resource.data.recipientUids.size() <= 20
         && request.resource.data.senderDisplayName is string
         && request.resource.data.senderDisplayName.size() > 0
         && request.resource.data.senderDisplayName.size() <= 80
-        && request.resource.data.audience == 'nearby_helper'
+        && request.resource.data.audience in [
+          'nearby_helper',
+          'trusted_contact'
+        ]
+        && (
+          (
+            request.resource.data.audience == 'nearby_helper'
+            && request.resource.data.recipientUids.size() == 0
+          )
+          || (
+            request.resource.data.audience == 'trusted_contact'
+            && request.resource.data.recipientUids.size() > 0
+            && !request.resource.data.recipientUids.hasAny([
+              request.auth.uid
+            ])
+          )
+        )
         && request.resource.data.status == 'active'
         && request.resource.data.preciseLocation is latlng
         && request.resource.data.createdAt == request.time

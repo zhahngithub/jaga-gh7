@@ -65,7 +65,7 @@ class _RegistrationScreenState extends ConsumerState<RegistrationScreen> {
       leading: const AuthBackButton(),
       title: 'Buat akun Jaga',
       subtitle:
-          'Langkah 1 dari 2 · Isi data akun, lalu tambahkan satu kontak darurat.',
+          'Langkah 1 dari 3 \u00B7 Isi data akun, lalu lanjutkan pengaturan keamanan.',
       child: AutofillGroup(
         child: Form(
           key: _formKey,

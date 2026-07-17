@@ -91,6 +91,84 @@ class DistressController extends Notifier<DistressState> {
     }
   }
 
+  Future<bool> startTrustedContactDistress() async {
+    if (state.isLoading) return false;
+    final activeSessionId = state.activeSessionId;
+    if (activeSessionId != null) {
+      state = DistressState(
+        activeSessionId: activeSessionId,
+        feedbackMessage: 'Sesi darurat sudah aktif.',
+      );
+      return true;
+    }
+    if (ref.read(authenticationStateProvider).value == null) {
+      state = const DistressState(
+        feedbackMessage: 'Masuk ke akun Jaga terlebih dahulu.',
+        feedbackIsError: true,
+      );
+      return false;
+    }
+    final locationState = ref.read(liveLocationProvider);
+    final location = locationState.value;
+    if (location == null) {
+      final error = locationState.error?.toString().toLowerCase() ?? '';
+      state = DistressState(
+        feedbackMessage: error.contains('denied')
+            ? 'Izin lokasi diperlukan untuk mengirim lokasi darurat.'
+            : 'Lokasi terkini belum tersedia. Silakan coba lagi.',
+        feedbackIsError: true,
+      );
+      return false;
+    }
+
+    state = const DistressState(isLoading: true);
+    try {
+      final repository = ref.read(distressRepositoryProvider);
+      final existingSessionId = await repository.findActiveOwnedSessionId();
+      if (existingSessionId != null) {
+        _lastSentLocation = location;
+        state = DistressState(
+          activeSessionId: existingSessionId,
+          feedbackMessage: 'Sesi darurat sudah aktif.',
+        );
+        _startLocationUpdater();
+        return true;
+      }
+      final recipients = await repository.loadTrustedContactRecipients();
+      if (recipients.isEmpty) {
+        throw const DistressDataException(
+          'Tidak ada kontak darurat yang terhubung dengan akun Jaga.',
+        );
+      }
+      final result = await repository.startTrustedContactSession(
+        location: location,
+        recipientUids: recipients.uids,
+        recipientDisplayNames: recipients.displayNames,
+      );
+      _lastSentLocation = location;
+      state = DistressState(
+        activeSessionId: result.sessionId,
+        feedbackMessage:
+            'Lokasi langsung dikirim ke ${result.recipientCount} kontak darurat.',
+      );
+      _startLocationUpdater();
+      return true;
+    } on DistressDataException catch (error) {
+      state = DistressState(
+        feedbackMessage: error.message,
+        feedbackIsError: true,
+      );
+      return false;
+    } on Object {
+      state = const DistressState(
+        feedbackMessage:
+            'Sinyal darurat belum dapat dikirim. Silakan coba lagi.',
+        feedbackIsError: true,
+      );
+      return false;
+    }
+  }
+
   Future<void> stop() async {
     final sessionId = state.activeSessionId;
     if (sessionId == null || state.isLoading) return;

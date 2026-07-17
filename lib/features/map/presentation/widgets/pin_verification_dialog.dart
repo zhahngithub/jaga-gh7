@@ -1,124 +1,230 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jaga/core/theme/app_colors.dart';
+import 'package:jaga/features/pin/application/pin_providers.dart';
+import 'package:jaga/features/pin/application/pin_validation.dart';
+import 'package:jaga/features/pin/application/pin_verification_controller.dart';
+import 'package:jaga/features/pin/presentation/widgets/pin_input_field.dart';
 
-class PinVerificationDialog extends StatefulWidget {
-  final VoidCallback onSuccess;
-
-  const PinVerificationDialog({super.key, required this.onSuccess});
-
-  @override
-  State<PinVerificationDialog> createState() => _PinVerificationDialogState();
+Future<bool> showPinVerificationDialog(
+  BuildContext context, {
+  String reason = 'membatalkan status darurat',
+}) async {
+  final result = await showDialog<bool>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => PinVerificationDialog(reason: reason),
+  );
+  return result == true;
 }
 
-class _PinVerificationDialogState extends State<PinVerificationDialog> {
-  final TextEditingController _pinController = TextEditingController();
-  String? _errorMessage;
+class PinVerificationDialog extends ConsumerStatefulWidget {
+  const PinVerificationDialog({
+    this.reason = 'membatalkan status darurat',
+    super.key,
+  });
 
-  void _verifyPin() {
-    // TODO: Replace '1234' with the actual user's
-    const String correctPin = "1234"; 
+  final String reason;
 
-    if (_pinController.text == correctPin) {
-      widget.onSuccess();
-    } else {
-      setState(() {
-        _errorMessage = "PIN salah.";
-        _pinController.clear();
-        Navigator.of(context).pop();
-      });
-    }
+  @override
+  ConsumerState<PinVerificationDialog> createState() =>
+      _PinVerificationDialogState();
+}
+
+class _PinVerificationDialogState extends ConsumerState<PinVerificationDialog> {
+  final _pinController = TextEditingController();
+  final _pinFocusNode = FocusNode();
+
+  Timer? _lockoutTimer;
+  String? _pinError;
+  DateTime? _lockoutUntil;
+  int _remainingSeconds = 0;
+
+  String? get _uid => ref.read(currentPinUserIdProvider);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _inspectAttempts());
   }
 
   @override
   void dispose() {
+    _lockoutTimer?.cancel();
+    _pinController.clear();
     _pinController.dispose();
+    _pinFocusNode.dispose();
     super.dispose();
+  }
+
+  Future<void> _inspectAttempts() async {
+    ref.read(pinVerificationControllerProvider.notifier).clearMessage();
+    final attempts = await ref
+        .read(pinVerificationControllerProvider.notifier)
+        .inspectAttempts(_uid);
+    if (!mounted || attempts == null) {
+      return;
+    }
+    _startLockoutTimer(attempts.lockoutUntil);
+    if (_remainingSeconds == 0) {
+      _pinFocusNode.requestFocus();
+    }
+  }
+
+  Future<void> _verifyPin() async {
+    final request = ref.read(pinVerificationControllerProvider);
+    if (request.isLoading || _remainingSeconds > 0) {
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    final pin = _pinController.text;
+    final pinError = validatePinForVerification(pin);
+    setState(() => _pinError = pinError);
+    if (pinError != null) {
+      return;
+    }
+
+    final outcome = await ref
+        .read(pinVerificationControllerProvider.notifier)
+        .verify(uid: _uid, pin: pin);
+    if (!mounted) {
+      return;
+    }
+
+    _pinController.clear();
+    if (outcome.verified) {
+      Navigator.of(context).pop(true);
+      return;
+    }
+
+    _startLockoutTimer(outcome.lockoutUntil);
+    if (_remainingSeconds == 0) {
+      _pinFocusNode.requestFocus();
+    }
+  }
+
+  void _startLockoutTimer(DateTime? lockoutUntil) {
+    _lockoutTimer?.cancel();
+    _lockoutUntil = lockoutUntil;
+    if (lockoutUntil == null) {
+      setState(() => _remainingSeconds = 0);
+      return;
+    }
+    _updateRemainingLockout();
+    if (_remainingSeconds == 0) {
+      return;
+    }
+    _lockoutTimer = Timer.periodic(
+      const Duration(seconds: 1),
+      (_) => _updateRemainingLockout(),
+    );
+  }
+
+  void _updateRemainingLockout() {
+    final until = _lockoutUntil;
+    final milliseconds = until?.difference(DateTime.now()).inMilliseconds ?? 0;
+    final seconds = milliseconds <= 0 ? 0 : (milliseconds / 1000).ceil();
+    if (!mounted) {
+      return;
+    }
+    setState(() => _remainingSeconds = seconds);
+    if (seconds == 0) {
+      _lockoutTimer?.cancel();
+      _lockoutUntil = null;
+      ref.read(pinVerificationControllerProvider.notifier).clearMessage();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final request = ref.watch(pinVerificationControllerProvider);
+    final isLocked = _remainingSeconds > 0;
+    final isBusy = request.isLoading || isLocked;
+    final isPinComplete = _pinController.text.length == 4;
+    final errorMessage = isLocked
+        ? 'Terlalu banyak percobaan. Coba lagi dalam $_remainingSeconds detik.'
+        : request.errorMessage;
+
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16.0),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(28.0),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Icon(Icons.lock_outline_rounded, size: 48, color: Colors.grey),
+            const Icon(
+              Icons.lock_outline_rounded,
+              size: 48,
+              color: AppColors.primary,
+            ),
             const SizedBox(height: 12),
-            
-            const Text(
-              "Masukkan PIN Keamanan",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            Text(
+              'Masukkan PIN keamanan',
+              style: Theme.of(context).textTheme.titleLarge,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 6),
-            
-            const Text(
-              "Masukkan PIN kamu untuk membatalkan status darurat.",
-              style: TextStyle(fontSize: 14, color: Colors.grey),
+            Text(
+              widget.reason == 'membatalkan status darurat'
+                  ? 'Masukkan PIN kamu untuk membatalkan status darurat.'
+                  : 'Masukkan PIN kamu untuk ${widget.reason}.',
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: AppColors.textMuted),
               textAlign: TextAlign.center,
             ),
-            const SizedBox(height: 12),
-
-            // PIN Input Field
-            TextField(
+            const SizedBox(height: 18),
+            PinInputField(
               controller: _pinController,
-              keyboardType: TextInputType.number,
-              obscureText: true,
-              maxLength: 4,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 24, letterSpacing: 8.0),
-              decoration: InputDecoration(
-                counterText: "",
-                errorText: _errorMessage,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8.0),
-                ),
-                focusedBorder: const OutlineInputBorder(
-                  borderSide: BorderSide(color: AppColors.primary, width: 2),
-                ),
-              ),
+              focusNode: _pinFocusNode,
+              semanticLabel: 'Masukkan PIN 4 digit',
+              enabled: !isBusy,
+              errorText: _pinError,
+              textInputAction: TextInputAction.done,
+              onChanged: (_) {
+                setState(() => _pinError = null);
+                ref
+                    .read(pinVerificationControllerProvider.notifier)
+                    .clearMessage();
+              },
             ),
-            const SizedBox(height: 12),
-
-            // Verify Button
+            if (errorMessage != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                errorMessage,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+            const SizedBox(height: 18),
             SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                onPressed: () {
-                  if (_pinController.text.length == 4) {
-                    _verifyPin();
-                  }
-                },
-                child: const Text(
-                  "Verifikasi",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
+              height: 50,
+              child: FilledButton(
+                onPressed: isBusy || !isPinComplete ? null : _verifyPin,
+                child: request.isLoading
+                    ? const SizedBox(
+                        width: 22,
+                        height: 22,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.4,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Verifikasi'),
               ),
             ),
             const SizedBox(height: 6),
-
-            // Back Button
-            SizedBox(
-              width: double.infinity,
-              child: TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text(
-                  "Kembali", 
-                  style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
-                ),
-              ),
+            TextButton(
+              onPressed: request.isLoading
+                  ? null
+                  : () => Navigator.of(context).pop(false),
+              child: const Text('Kembali'),
             ),
           ],
         ),
