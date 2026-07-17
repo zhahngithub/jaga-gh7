@@ -10,6 +10,7 @@ import 'package:jaga/features/map/presentation/widgets/emergency_notified_dialog
 import 'package:jaga/features/map/presentation/widgets/active_distress_marker.dart';
 import 'package:jaga/features/map/presentation/widgets/help_request_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/nearby_notified_dialog.dart';
+import 'package:jaga/features/map/presentation/widgets/pin_verification_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/police_notified_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/safety_check_dialog.dart';
 import 'package:jaga/features/notifications/application/notification_routing_controller.dart';
@@ -467,6 +468,80 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     return minDistance;
   }
 
+  // Menu pilihan saat map di-klik
+  void _showMapActionMenu(LatLng location) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 8),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade400,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              leading: const Icon(Icons.report_problem_rounded, color: Colors.orange),
+              title: const Text('Lapor Lokasi'),
+              subtitle: const Text('Tambahkan laporan bahaya atau aman di titik ini'),
+              onTap: () {
+                Navigator.pop(context); // Tutup menu
+                _openReportSheet(location); // Buka form report
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.directions_walk, color: Colors.blueAccent),
+              title: const Text('Jadikan Tujuan'),
+              subtitle: const Text('Arahkan rute navigasi ke titik ini'),
+              onTap: () {
+                Navigator.pop(context); // Tutup menu
+                ref.read(destinationProvider.notifier).updateLocation(location);
+                // Snap kamera HANYA SEKALI pas tujuan dipilih
+                _mapController.move(location, 15.0); 
+              },
+            ),
+            const SizedBox(height: 16),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Logika asli form report yang dipindah ke function terpisah
+  void _openReportSheet(LatLng location) async {
+    FocusScope.of(context).unfocus();
+    ref.read(searchResultsVisibleProvider.notifier).hide();
+    _reportSheetTop = null;
+    ref.read(draftLocationProvider.notifier).setLocation(location);
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        barrierColor: Colors.transparent,
+        builder: (_) => _ReportSheetBoundsObserver(
+          onTopChanged: _handleReportSheetTopChanged,
+          child: ReportBottomSheet(location: location),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        _reportSheetTop = null;
+        ref.read(draftLocationProvider.notifier).clear();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // pake provider buat gps
@@ -525,15 +600,21 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     }
 
     // Listener for showing the pop up after certain time countdown
-    ref.listen<EmergencyStatus>(emergencyProvider, (previous, next) {
+    ref.listen<EmergencyStatus>(emergencyProvider, (previous, next) async {
       if (next == EmergencyStatus.warning) {
         _showSafetyCheckPopup(_offTrackDistance);
       } else if (next == EmergencyStatus.safe && previous == EmergencyStatus.warning) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(); // Tutup popup warning
       } else if (next == EmergencyStatus.notifying && previous == EmergencyStatus.warning) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(); // Tutup popup warning
 
-        _showEmergencyNotifiedPopup();
+        // TRIGGER REAL SOS KE BACKEND
+        final currentLocation = ref.read(liveLocationProvider).value;
+        if (currentLocation != null) {
+          await ref.read(distressControllerProvider.notifier).start(currentLocation);
+        } else {
+          _showDistressMessage('Lokasi tidak tersedia untuk mengirim SOS otomatis.', isError: true);
+        }
       }
     });
 
@@ -578,40 +659,13 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                 _lastObservedRotation = _mapController.camera.rotation;
               },
               onPositionChanged: _handleMapPositionChanged,
-              onTap: (_, location) async {
-                debugPrint(
-                  'MAP REPORT TAP: '
-                  '${location.latitude}, ${location.longitude}',
-                );
+              onTap: (_, location) {
                 FocusScope.of(context).unfocus();
-                ref.read(searchResultsVisibleProvider.notifier).hide();
-                _reportSheetTop = null;
-                ref.read(draftLocationProvider.notifier).setLocation(location);
-
-                try {
-                  await showModalBottomSheet<void>(
-                    context: context,
-                    isScrollControlled: true,
-                    useSafeArea: true,
-                    barrierColor: Colors.transparent,
-                    builder: (_) => _ReportSheetBoundsObserver(
-                      onTopChanged: _handleReportSheetTopChanged,
-                      child: ReportBottomSheet(location: location),
-                    ),
-                  );
-                } finally {
-                  if (mounted) {
-                    _reportSheetTop = null;
-                    ref.read(draftLocationProvider.notifier).clear();
-                  }
-                }
+                _showMapActionMenu(location);
               },
               onLongPress: (_, location) {
-                // tutup keyboard kalau kebuka
                 FocusScope.of(context).unfocus();
-                
-                // update provider tujuan ke titik yang ditekan
-                ref.read(destinationProvider.notifier).updateLocation(location);
+                _showMapActionMenu(location);
               },
             ),
             children: [
@@ -676,9 +730,6 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                   // pindah kamera pas pertama load
                   if (!_hasInitialCameraMoved) {
                     _hasInitialCameraMoved = true;
-                    WidgetsBinding.instance.addPostFrameCallback((_) {
-                      _mapController.move(currentPosition, 15.0);
-                    });
                   }
 
                   // 1. cek kalau user udah cari tujuan
@@ -1003,32 +1054,34 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                       foregroundColor: Colors.white,
                     ),
                     onPressed: distressState.isLoading
-                        ? null
-                        : () async {
-                            if (distressState.isActive) {
-                              await ref
-                                  .read(
-                                    distressControllerProvider.notifier,
-                                  )
-                                  .stop();
-                              return;
+                      ? null
+                      : () async {
+                          // Kalau lagi aktif, minta PIN buat matiin
+                          if (distressState.isActive) {
+                            final isVerified = await showPinVerificationDialog(
+                              context, 
+                              reason: 'membatalkan status darurat'
+                            );
+                            
+                            // Kalau PIN bener, baru stop SOS-nya
+                            if (isVerified) {
+                              await ref.read(distressControllerProvider.notifier).stop();
                             }
-                            final currentLocation = ref
-                                .read(liveLocationProvider)
-                                .value;
-                            if (currentLocation == null) {
-                              _showDistressMessage(
-                                _locationUnavailableMessage(
-                                  ref.read(liveLocationProvider),
-                                ),
-                                isError: true,
-                              );
-                              return;
-                            }
-                            await ref
-                                .read(distressControllerProvider.notifier)
-                                .start(currentLocation);
-                          },
+                            return;
+                          }
+
+                          // Kalau lagi mati, nyalain SOS (tanpa PIN)
+                          final currentLocation = ref.read(liveLocationProvider).value;
+                          if (currentLocation == null) {
+                            _showDistressMessage(
+                              _locationUnavailableMessage(ref.read(liveLocationProvider)),
+                              isError: true,
+                            );
+                            return;
+                          }
+                          
+                          await ref.read(distressControllerProvider.notifier).start(currentLocation);
+                        },
                     icon: distressState.isLoading
                         ? const SizedBox.square(
                             dimension: 18,
@@ -1120,16 +1173,91 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
             ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          // fokus ke marker user
-          final currentPosition = ref.read(liveLocationProvider).value;
-          if (currentPosition != null) {
-            _mapController.move(currentPosition, 15.0);
-          }
-        },
-        backgroundColor: Colors.white,
-        child: const Icon(Icons.my_location, color: Colors.blueAccent),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          // 1. TOMBOL BATALKAN RUTE (Hanya muncul jika ada tujuan)
+          if (ref.watch(destinationProvider) != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: FloatingActionButton.extended(
+                heroTag: "btn_cancel_route",
+                onPressed: () {
+                  // Hapus tujuan dan garis rute dari state
+                  ref.invalidate(destinationProvider); 
+                  ref.read(routeProvider.notifier).clearRoutes();
+                },
+                backgroundColor: Colors.white,
+                foregroundColor: Colors.black87,
+                icon: const Icon(Icons.close_rounded, color: Colors.red),
+                label: const Text("Batalkan Rute"),
+              ),
+            ),
+
+          // 2. TOMBOL SOS DARURAT (Dengan verifikasi PIN saat membatalkan)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 12.0),
+            child: FloatingActionButton.extended(
+              heroTag: "btn_sos",
+              onPressed: distressState.isLoading
+                  ? null
+                  : () async {
+                      // Kalau lagi aktif, minta PIN buat matiin
+                      if (distressState.isActive) {
+                        final isVerified = await showPinVerificationDialog(
+                          context, 
+                          reason: 'membatalkan status darurat'
+                        );
+                        
+                        if (isVerified) {
+                          await ref.read(distressControllerProvider.notifier).stop();
+                        }
+                        return;
+                      }
+
+                      // Kalau lagi mati, nyalain SOS
+                      final currentLocation = ref.read(liveLocationProvider).value;
+                      if (currentLocation == null) {
+                        _showDistressMessage(
+                          _locationUnavailableMessage(ref.read(liveLocationProvider)),
+                          isError: true,
+                        );
+                        return;
+                      }
+                      
+                      await ref.read(distressControllerProvider.notifier).start(currentLocation);
+                    },
+              backgroundColor: distressState.isActive ? Colors.grey : Colors.red,
+              foregroundColor: Colors.white,
+              elevation: 4,
+              icon: distressState.isLoading
+                  ? const SizedBox.square(
+                      dimension: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.sos_rounded, size: 28),
+              label: Text(
+                distressState.isActive ? "HENTIKAN SOS" : "DARURAT",
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              ),
+            ),
+          ),
+
+          // 3. TOMBOL MY LOCATION (Kembali ke titik GPS)
+          FloatingActionButton(
+            heroTag: "btn_location",
+            onPressed: () {
+              final currentPosition = ref.read(liveLocationProvider).value;
+              if (currentPosition != null) {
+                _mapController.move(currentPosition, 15.0);
+              }
+            },
+            backgroundColor: Colors.white,
+            elevation: 4,
+            child: const Icon(Icons.my_location, color: Colors.blueAccent),
+          ),
+        ],
       ),
     );
   }
