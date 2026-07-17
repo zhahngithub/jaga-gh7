@@ -87,7 +87,7 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
                   );
                 },
                 child: Text(
-                  "Batalkan, aku aman.", 
+                  "Batalkan, aku aman", 
                   style: TextStyle(
                     fontSize: 16, 
                     fontWeight: FontWeight.bold,

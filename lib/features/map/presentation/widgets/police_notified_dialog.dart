@@ -26,7 +26,7 @@ class PoliceNotifiedDialog extends ConsumerWidget {
             const SizedBox(height: 16),
             
             const Text(
-              "Menginformasikan polisi terdekat", 
+              "Menginformasikan polisi terdekat!", 
               style: TextStyle(
                 fontSize: 22,
                 fontWeight: FontWeight.bold,
@@ -91,7 +91,7 @@ class PoliceNotifiedDialog extends ConsumerWidget {
                   );
                 },
                 child: Text(
-                  "Batalkan, aku aman.", 
+                  "Batalkan, aku aman", 
                   style: TextStyle(
                     fontSize: 16, 
                     fontWeight: FontWeight.bold,

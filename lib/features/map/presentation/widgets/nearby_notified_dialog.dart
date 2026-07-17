@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jaga/core/theme/app_colors.dart';
+import 'package:jaga/features/map/application/emergency_service.dart';
 
-class NearbyNotifiedDialog extends StatelessWidget {
+class NearbyNotifiedDialog extends ConsumerWidget {
   final int radiusInMeters;
 
   const NearbyNotifiedDialog({
@@ -10,7 +12,7 @@ class NearbyNotifiedDialog extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Dialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16.0),
@@ -35,7 +37,7 @@ class NearbyNotifiedDialog extends StatelessWidget {
             const SizedBox(height: 8),
             
             Text(
-              "Seluruh pengguna di ${radiusInMeters}m sekitarmu telah diberitahu keadaan daruratmu.",
+              "Seluruh pengguna di $radiusInMeters meter sekitarmu telah diberitahu keadaan daruratmu.",
               style: const TextStyle(
                 fontSize: 16, 
                 color: Colors.grey,
@@ -63,6 +65,38 @@ class NearbyNotifiedDialog extends StatelessWidget {
                 child: const Text(
                   "Mengerti",
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Cancel Button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: BorderSide(color: Colors.grey),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () {
+                  ref.read(emergencyProvider.notifier).markAsSafe();
+                  Navigator.of(context).pop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text("Status darurat dibatalkan.", style: TextStyle(fontWeight: FontWeight.bold),),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                },
+                child: Text(
+                  "Batalkan, aku aman", 
+                  style: TextStyle(
+                    fontSize: 16, 
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey, 
+                  ),
                 ),
               ),
             ),

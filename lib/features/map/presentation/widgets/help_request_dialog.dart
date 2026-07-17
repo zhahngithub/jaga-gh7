@@ -20,8 +20,8 @@ class HelpRequestDialog extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.sos_rounded, size: 80, color: AppColors.primary), 
-            const SizedBox(height: 16),
+            const Icon(Icons.warning_amber_rounded, size: 100, color: Colors.red), 
+            const SizedBox(height: 8),
             
             const Text(
               "Seseorang membutuhkan bantuanmu!", 
@@ -35,7 +35,7 @@ class HelpRequestDialog extends StatelessWidget {
             const SizedBox(height: 8),
             
             Text(
-              "Seorang pengguna $distanceInMeters meter dari kamu sedang dalam bahaya.",
+              "Seorang pengguna $distanceInMeters meter dari lokasimu sedang dalam bahaya.",
               style: const TextStyle(
                 fontSize: 16, 
                 color: Colors.grey,
@@ -50,7 +50,7 @@ class HelpRequestDialog extends StatelessWidget {
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary, 
+                  backgroundColor: Colors.red, 
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(

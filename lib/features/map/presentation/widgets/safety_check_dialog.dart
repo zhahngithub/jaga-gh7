@@ -87,7 +87,7 @@ class SafetyCheckDialog extends ConsumerWidget {
                   ref.read(emergencyProvider.notifier).markAsSafe();
                 },
                 child: Text(
-                  "Tidak, aku aman.", 
+                  "Tidak, aku aman", 
                   style: TextStyle(
                     fontSize: 16, 
                     fontWeight: FontWeight.bold,
