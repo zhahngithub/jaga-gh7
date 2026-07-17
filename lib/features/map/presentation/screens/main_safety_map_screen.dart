@@ -787,8 +787,11 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
       }
     });
 
-    return Scaffold(
-      body: Stack(
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: Scaffold(
+            body: Stack(
         children: [
           FlutterMap(
             key: _mapKey,
@@ -1129,25 +1132,6 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
               ),
             ),
           ),
-          if (viewedSession != null)
-            Positioned(
-              left: 16,
-              right: 16,
-              bottom: 88,
-              child: _DistressSessionBanner(
-                session: distressSession,
-                isLoading: viewedSession.isLoading,
-                errorMessage: viewedSession.hasError
-                    ? viewedSession.error.toString()
-                    : null,
-                onDismiss: () {
-                  _centeredDistressSessionId = null;
-                  ref
-                      .read(notificationNavigationProvider.notifier)
-                      .clearViewedSession();
-                },
-              ),
-            ),
         ],
       ),
       floatingActionButton: Column(
@@ -1282,8 +1266,30 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
             elevation: 4,
             child: const Icon(Icons.my_location, color: Colors.blueAccent),
           ),
-        ],
-      ),
+            ],
+          ),
+        ),
+        ),
+        if (viewedSession != null)
+          Positioned(
+            left: 16,
+            right: 16,
+            bottom: 88,
+            child: _DistressSessionBanner(
+              session: distressSession,
+              isLoading: viewedSession.isLoading,
+              errorMessage: viewedSession.hasError
+                  ? viewedSession.error.toString()
+                  : null,
+              onDismiss: () {
+                _centeredDistressSessionId = null;
+                ref
+                    .read(notificationNavigationProvider.notifier)
+                    .clearViewedSession();
+              },
+            ),
+          ),
+      ],
     );
   }
 }
