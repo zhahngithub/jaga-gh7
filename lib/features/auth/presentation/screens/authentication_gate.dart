@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jaga/core/theme/app_colors.dart';
 import 'package:jaga/features/map/presentation/screens/main_safety_map_screen.dart';
+import 'package:jaga/features/pin/application/pin_error_mapper.dart';
+import 'package:jaga/features/pin/application/pin_providers.dart';
+import 'package:jaga/features/pin/data/models/pin_models.dart';
+import 'package:jaga/features/pin/presentation/screens/pin_setup_screen.dart';
 import 'package:jaga/features/profile/presentation/screens/profile_settings_screen.dart';
 
 import '../../application/auth_controllers.dart';
@@ -60,19 +64,43 @@ class AuthenticationGate extends ConsumerWidget {
                 if (!exists) {
                   return TrustedContactOnboardingScreen(uid: session.uid);
                 }
-                return MainSafetyMapScreen(
-                  displayName: userProfile.displayName,
-                  onOpenProfile: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute<void>(
-                        builder: (_) => ProfileSettingsScreen(uid: session.uid),
-                      ),
+                final pinStatus = ref.watch(pinStatusProvider(session.uid));
+                return pinStatus.when(
+                  loading: () => const _GateLoading(),
+                  error: (error, _) => _GateError(
+                    title: 'PIN perangkat belum dapat diperiksa',
+                    message: error is PinFailure
+                        ? mapPinFailure(error, operation: PinOperation.status)
+                        : 'Status PIN perangkat belum dapat diperiksa. Coba lagi.',
+                    icon: Icons.phonelink_lock_rounded,
+                    onRetry: () =>
+                        ref.invalidate(pinStatusProvider(session.uid)),
+                  ),
+                  data: (hasPin) {
+                    if (!hasPin) {
+                      return PinSetupScreen(
+                        uid: session.uid,
+                        onSignOut: () => ref
+                            .read(signOutControllerProvider.notifier)
+                            .signOut(),
+                      );
+                    }
+                    return MainSafetyMapScreen(
+                      displayName: userProfile.displayName,
+                      onOpenProfile: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) =>
+                                ProfileSettingsScreen(uid: session.uid),
+                          ),
+                        );
+                      },
+                      onSignOut: () async {
+                        return ref
+                            .read(signOutControllerProvider.notifier)
+                            .signOut();
+                      },
                     );
-                  },
-                  onSignOut: () async {
-                    return ref
-                        .read(signOutControllerProvider.notifier)
-                        .signOut();
                   },
                 );
               },
@@ -97,9 +125,17 @@ class _GateLoading extends StatelessWidget {
 }
 
 class _GateError extends StatelessWidget {
-  const _GateError({required this.onRetry});
+  const _GateError({
+    required this.onRetry,
+    this.title = 'Jaga belum dapat memuat akunmu',
+    this.message = 'Periksa koneksi internet, lalu coba lagi.',
+    this.icon = Icons.cloud_off_rounded,
+  });
 
   final VoidCallback onRetry;
+  final String title;
+  final String message;
+  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
@@ -119,22 +155,15 @@ class _GateError extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(
-                        Icons.cloud_off_rounded,
-                        size: 56,
-                        color: Colors.red,
-                      ),
+                      Icon(icon, size: 56, color: Colors.red),
                       const SizedBox(height: 18),
                       Text(
-                        'Jaga belum dapat memuat akunmu',
+                        title,
                         textAlign: TextAlign.center,
                         style: Theme.of(context).textTheme.titleLarge,
                       ),
                       const SizedBox(height: 10),
-                      const Text(
-                        'Periksa koneksi internet, lalu coba lagi.',
-                        textAlign: TextAlign.center,
-                      ),
+                      Text(message, textAlign: TextAlign.center),
                       const SizedBox(height: 22),
                       FilledButton.icon(
                         onPressed: onRetry,
