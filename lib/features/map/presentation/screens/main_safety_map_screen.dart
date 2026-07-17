@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:jaga/core/constants/safety_constants.dart';
+import 'package:jaga/features/auth/application/auth_providers.dart';
 import 'package:jaga/features/distress/application/distress_controller.dart';
 import 'package:jaga/features/distress/data/models/distress_session.dart';
 import 'package:jaga/features/map/application/emergency_service.dart';
 import 'package:jaga/features/map/presentation/widgets/emergency_notified_dialog.dart';
+import 'package:jaga/features/map/presentation/widgets/active_distress_marker.dart';
 import 'package:jaga/features/map/presentation/widgets/help_request_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/nearby_notified_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/police_notified_dialog.dart';
@@ -430,6 +432,17 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     final reportsAsync = ref.watch(visibleReportsProvider);
     final visibleReports = reportsAsync.value ?? const <Report>[];
     final distressState = ref.watch(distressControllerProvider);
+    final authSession = ref.watch(authenticationStateProvider).value;
+    final senderSessionId = distressState.activeSessionId;
+    final senderSession = senderSessionId == null
+        ? null
+        : ref.watch(distressSessionProvider(senderSessionId));
+    final activeSenderSession = senderSession?.value;
+    final activeSenderLocation =
+        activeSenderSession?.isActive == true &&
+            activeSenderSession?.senderUid == authSession?.uid
+        ? locationAsyncValue.value ?? activeSenderSession?.preciseLocation
+        : null;
     final notificationNavigation = ref.watch(notificationNavigationProvider);
     final viewedSessionId = notificationNavigation.viewedSessionId;
     final viewedSession = viewedSessionId == null
@@ -722,6 +735,18 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                   ),
                 ],
               ),
+              if (activeSenderLocation != null)
+                MarkerLayer(
+                  rotate: true,
+                  markers: [
+                    Marker(
+                      point: activeSenderLocation,
+                      width: 116,
+                      height: 116,
+                      child: const IgnorePointer(child: ActiveDistressMarker()),
+                    ),
+                  ],
+                ),
               if (distressSession?.isActive == true)
                 MarkerLayer(
                   rotate: true,
