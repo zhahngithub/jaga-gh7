@@ -10,6 +10,7 @@ import 'package:jaga/features/map/presentation/widgets/emergency_notified_dialog
 import 'package:jaga/features/map/presentation/widgets/active_distress_marker.dart';
 import 'package:jaga/features/map/presentation/widgets/help_request_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/nearby_notified_dialog.dart';
+import 'package:jaga/features/map/presentation/widgets/pin_verification_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/police_notified_dialog.dart';
 import 'package:jaga/features/map/presentation/widgets/safety_check_dialog.dart';
 import 'package:jaga/features/notifications/application/notification_routing_controller.dart';
@@ -582,15 +583,21 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     }
 
     // Listener for showing the pop up after certain time countdown
-    ref.listen<EmergencyStatus>(emergencyProvider, (previous, next) {
+    ref.listen<EmergencyStatus>(emergencyProvider, (previous, next) async {
       if (next == EmergencyStatus.warning) {
         _showSafetyCheckPopup(_offTrackDistance);
       } else if (next == EmergencyStatus.safe && previous == EmergencyStatus.warning) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(); // Tutup popup warning
       } else if (next == EmergencyStatus.notifying && previous == EmergencyStatus.warning) {
-        Navigator.of(context).pop();
+        Navigator.of(context).pop(); // Tutup popup warning
 
-        _showEmergencyNotifiedPopup();
+        // TRIGGER REAL SOS KE BACKEND
+        final currentLocation = ref.read(liveLocationProvider).value;
+        if (currentLocation != null) {
+          await ref.read(distressControllerProvider.notifier).start(currentLocation);
+        } else {
+          _showDistressMessage('Lokasi tidak tersedia untuk mengirim SOS otomatis.', isError: true);
+        }
       }
     });
 
@@ -1020,32 +1027,34 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                       foregroundColor: Colors.white,
                     ),
                     onPressed: distressState.isLoading
-                        ? null
-                        : () async {
-                            if (distressState.isActive) {
-                              await ref
-                                  .read(
-                                    distressControllerProvider.notifier,
-                                  )
-                                  .stop();
-                              return;
+                      ? null
+                      : () async {
+                          // Kalau lagi aktif, minta PIN buat matiin
+                          if (distressState.isActive) {
+                            final isVerified = await showPinVerificationDialog(
+                              context, 
+                              reason: 'membatalkan status darurat'
+                            );
+                            
+                            // Kalau PIN bener, baru stop SOS-nya
+                            if (isVerified) {
+                              await ref.read(distressControllerProvider.notifier).stop();
                             }
-                            final currentLocation = ref
-                                .read(liveLocationProvider)
-                                .value;
-                            if (currentLocation == null) {
-                              _showDistressMessage(
-                                _locationUnavailableMessage(
-                                  ref.read(liveLocationProvider),
-                                ),
-                                isError: true,
-                              );
-                              return;
-                            }
-                            await ref
-                                .read(distressControllerProvider.notifier)
-                                .start(currentLocation);
-                          },
+                            return;
+                          }
+
+                          // Kalau lagi mati, nyalain SOS (tanpa PIN)
+                          final currentLocation = ref.read(liveLocationProvider).value;
+                          if (currentLocation == null) {
+                            _showDistressMessage(
+                              _locationUnavailableMessage(ref.read(liveLocationProvider)),
+                              isError: true,
+                            );
+                            return;
+                          }
+                          
+                          await ref.read(distressControllerProvider.notifier).start(currentLocation);
+                        },
                     icon: distressState.isLoading
                         ? const SizedBox.square(
                             dimension: 18,
