@@ -34,7 +34,7 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
               "Kami telah mengirim notifikasi dan live location kamu ke kontak darurat.",
               style: Theme.of(
                 context,
-              ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
@@ -54,7 +54,7 @@ class EmergencyNotifiedDialog extends ConsumerWidget {
                 onPressed: () {
                   Navigator.of(context).pop();
                 },
-                child: const Text("Mengerti"),
+                child: Text("Mengerti"),
               ),
             ),
             const SizedBox(height: 12),
