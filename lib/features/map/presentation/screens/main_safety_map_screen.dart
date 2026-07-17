@@ -422,6 +422,27 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     return polylines;
   }
 
+  // INI BAGIAN BUAT CEK OFF TRACK
+  // default 150m for the debug button fallback
+  int _offTrackDistance = 150; 
+
+  // Fungsi buat ngecek jarak terdekat dari user ke garis rute
+  double _calculateDistanceToRoute(LatLng currentPos, List<LatLng> route) {
+    if (route.isEmpty) return 0.0;
+    
+    final distance = const Distance();
+    double minDistance = double.infinity;
+
+    // Hackathon trick: Loop koordinat rute untuk cari titik terdekat
+    for (final point in route) {
+      final dist = distance.as(LengthUnit.Meter, currentPos, point);
+      if (dist < minDistance) {
+        minDistance = dist;
+      }
+    }
+    return minDistance;
+  }
+
   @override
   Widget build(BuildContext context) {
     // pake provider buat gps
@@ -471,15 +492,41 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     // Listener for showing the pop up after certain time countdown
     ref.listen<EmergencyStatus>(emergencyProvider, (previous, next) {
       if (next == EmergencyStatus.warning) {
-        _showSafetyCheckPopup(150);
-      } else if (next == EmergencyStatus.safe &&
-          previous == EmergencyStatus.warning) {
+        _showSafetyCheckPopup(_offTrackDistance);
+      } else if (next == EmergencyStatus.safe && previous == EmergencyStatus.warning) {
         Navigator.of(context).pop();
-      } else if (next == EmergencyStatus.notifying &&
-          previous == EmergencyStatus.warning) {
+      } else if (next == EmergencyStatus.notifying && previous == EmergencyStatus.warning) {
         Navigator.of(context).pop();
 
         _showEmergencyNotifiedPopup();
+      }
+    });
+
+    // listener buat off track
+    ref.listen(liveLocationProvider, (previous, next) {
+      final currentPos = next.value;
+      final currentEmergencyStatus = ref.read(emergencyProvider);
+      final routeState = ref.watch(routeProvider);
+
+      // Prioritaskan safeRoute kalau ada, kalau ga ada pake mainRoute
+      final activeRoute = routeState.safeRoute.isNotEmpty 
+          ? routeState.safeRoute 
+          : routeState.mainRoute;
+
+      // Pastikan GPS dapet, rute ada, dan status lagi AMAN (biar ga spam popup)
+      if (currentPos != null && activeRoute.isNotEmpty && currentEmergencyStatus == EmergencyStatus.safe) {
+        
+        // Hitung jarak user ke rute
+        double distanceToRoute = _calculateDistanceToRoute(currentPos, activeRoute);
+
+        // Kalau keluar jalur lebih dari 100 meter
+        if (distanceToRoute > 100.0) {
+          // Update angka jarak buat ditampilin di popup
+          _offTrackDistance = distanceToRoute.toInt();
+          
+          // Trigger state warning (ini otomatis manggil listener di atas buat pop up dialog)
+          ref.read(emergencyProvider.notifier).triggerWarning();
+        }
       }
     });
 
