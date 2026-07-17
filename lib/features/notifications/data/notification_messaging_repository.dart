@@ -45,20 +45,58 @@ class NotificationMessagingRepository {
         .distinct();
   }
 
-  Stream<Map<String, dynamic>> watchNewDistressAlerts({
+  Stream<Map<String, dynamic>> watchNewNearbyHelperAlerts({
     required String uid,
     required DateTime after,
   }) {
-    return _firestore
-        .collection('distressSessions')
-        .where('createdAt', isGreaterThanOrEqualTo: Timestamp.fromDate(after))
+    return _watchNewDistressAlerts(
+      query: _firestore
+          .collection('distressSessions')
+          .where('audience', isEqualTo: 'nearby_helper'),
+      uid: uid,
+      after: after,
+      audience: 'nearby_helper',
+    );
+  }
+
+  Stream<Map<String, dynamic>> watchNewTrustedContactAlerts({
+    required String uid,
+    required DateTime after,
+  }) {
+    return _watchNewDistressAlerts(
+      query: _firestore
+          .collection('distressSessions')
+          .where('audience', isEqualTo: 'trusted_contact')
+          .where('recipientUids', arrayContains: uid),
+      uid: uid,
+      after: after,
+      audience: 'trusted_contact',
+    );
+  }
+
+  Stream<Map<String, dynamic>> _watchNewDistressAlerts({
+    required Query<Map<String, dynamic>> query,
+    required String uid,
+    required DateTime after,
+    required String audience,
+  }) {
+    return query
         .snapshots()
         .expand((snapshot) => snapshot.docChanges)
         .where((change) {
           if (change.type != DocumentChangeType.added) return false;
           final data = change.doc.data();
           if (data == null || data['status'] != 'active') return false;
+          if (data['audience'] != audience) return false;
           if (data['senderUid'] == uid) return false;
+          final createdAt = data['createdAt'];
+          if (createdAt is! Timestamp || createdAt.toDate().isBefore(after)) {
+            return false;
+          }
+          if (audience == 'trusted_contact') {
+            final recipients = data['recipientUids'];
+            if (recipients is! List || !recipients.contains(uid)) return false;
+          }
           final expiresAt = data['expiresAt'];
           return expiresAt is! Timestamp ||
               expiresAt.toDate().isAfter(DateTime.now());
@@ -70,7 +108,7 @@ class NotificationMessagingRepository {
             'sessionId': change.doc.id,
             'senderUid': data['senderUid'],
             'senderDisplayName': data['senderDisplayName'],
-            'audience': 'nearby_helper',
+            'audience': audience,
           };
         });
   }
@@ -115,14 +153,24 @@ class NotificationMessagingRepository {
 
   Future<void> showLocalDistressAlert(Map<String, dynamic> data) async {
     final senderDisplayName = data['senderDisplayName'] as String?;
-    final body = senderDisplayName == null || senderDisplayName.isEmpty
-        ? 'Seorang pengguna Jaga mengirim sinyal darurat.'
-        : '$senderDisplayName mengirim sinyal darurat. Ketuk untuk melihat lokasi.';
+    final isTrustedContact = data['audience'] == 'trusted_contact';
+    final title = isTrustedContact
+        ? 'Kontak darurat membutuhkan bantuan'
+        : 'Permintaan bantuan darurat';
+    final hasSenderName =
+        senderDisplayName != null && senderDisplayName.isNotEmpty;
+    final body = isTrustedContact
+        ? hasSenderName
+              ? '$senderDisplayName mengirim sinyal darurat. Ketuk untuk melihat lokasi langsung.'
+              : 'Kontak darurat mengirim sinyal. Ketuk untuk melihat lokasi langsung.'
+        : hasSenderName
+        ? '$senderDisplayName mengirim sinyal darurat. Ketuk untuk melihat lokasi.'
+        : 'Seorang pengguna Jaga mengirim sinyal darurat.';
     await _localNotifications.show(
       id:
           (data['sessionId'] as String?)?.hashCode ??
           DateTime.now().millisecondsSinceEpoch,
-      title: 'Permintaan bantuan darurat',
+      title: title,
       body: body,
       notificationDetails: const NotificationDetails(
         android: AndroidNotificationDetails(
