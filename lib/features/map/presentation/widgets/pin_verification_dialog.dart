@@ -24,7 +24,6 @@ class _PinVerificationDialogState extends State<PinVerificationDialog> {
       setState(() {
         _errorMessage = "PIN salah.";
         _pinController.clear();
-        Navigator.of(context).pop();
       });
     }
   }
@@ -42,23 +41,23 @@ class _PinVerificationDialogState extends State<PinVerificationDialog> {
         borderRadius: BorderRadius.circular(16.0),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(28.0),
+        padding: const EdgeInsets.all(20.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const Icon(Icons.lock_outline_rounded, size: 48, color: Colors.grey),
             const SizedBox(height: 12),
             
-            const Text(
+            Text(
               "Masukkan PIN Keamanan",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              style: Theme.of(context).textTheme.titleLarge,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 6),
             
-            const Text(
+            Text(
               "Masukkan PIN kamu untuk membatalkan status darurat.",
-              style: TextStyle(fontSize: 14, color: Colors.grey),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
@@ -101,9 +100,8 @@ class _PinVerificationDialogState extends State<PinVerificationDialog> {
                     _verifyPin();
                   }
                 },
-                child: const Text(
+                child: Text(
                   "Verifikasi",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -114,9 +112,9 @@ class _PinVerificationDialogState extends State<PinVerificationDialog> {
               width: double.infinity,
               child: TextButton(
                 onPressed: () => Navigator.of(context).pop(),
-                child: const Text(
+                child: Text(
                   "Kembali", 
-                  style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold),
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Colors.grey),
                 ),
               ),
             ),

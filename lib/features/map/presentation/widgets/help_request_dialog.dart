@@ -33,7 +33,7 @@ class HelpRequestDialog extends StatelessWidget {
               "Seorang pengguna $distanceInMeters meter dari kamu sedang dalam bahaya.",
               style: Theme.of(
                 context,
-              ).textTheme.bodyLarge?.copyWith(color: Colors.grey),
+              ).textTheme.bodyMedium?.copyWith(color: Colors.grey),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),

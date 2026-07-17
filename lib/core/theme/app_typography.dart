@@ -53,7 +53,7 @@ class AppTypography {
       bodyMedium: inter.bodyMedium?.copyWith(
         fontSize: 14,
         fontWeight: FontWeight.w400,
-        height: 1.5,
+        height: 1.2,
         letterSpacing: 0.05,
       ),
       bodySmall: inter.bodySmall?.copyWith(
