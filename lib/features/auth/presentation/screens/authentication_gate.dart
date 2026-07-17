@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:jaga/core/theme/app_colors.dart';
 import 'package:jaga/features/map/presentation/screens/main_safety_map_screen.dart';
+import 'package:jaga/features/profile/presentation/screens/profile_settings_screen.dart';
 
 import '../../application/auth_controllers.dart';
 import '../../application/auth_providers.dart';
@@ -61,6 +62,13 @@ class AuthenticationGate extends ConsumerWidget {
                 }
                 return MainSafetyMapScreen(
                   displayName: userProfile.displayName,
+                  onOpenProfile: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => ProfileSettingsScreen(uid: session.uid),
+                      ),
+                    );
+                  },
                   onSignOut: () async {
                     return ref
                         .read(signOutControllerProvider.notifier)

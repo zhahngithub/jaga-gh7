@@ -22,11 +22,13 @@ import '../../../routing/application/routing_service.dart';
 class MainSafetyMapScreen extends ConsumerStatefulWidget {
   const MainSafetyMapScreen({
     required this.displayName,
+    required this.onOpenProfile,
     required this.onSignOut,
     super.key,
   });
 
   final String displayName;
+  final VoidCallback onOpenProfile;
   final Future<bool> Function() onSignOut;
 
   @override
@@ -519,6 +521,10 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                                 color: Colors.black87,
                               ),
                               onSelected: (value) async {
+                                if (value == 'profile') {
+                                  widget.onOpenProfile();
+                                  return;
+                                }
                                 if (value != 'signOut') {
                                   return;
                                 }
@@ -546,6 +552,16 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                                   ),
                                 ),
                                 const PopupMenuDivider(),
+                                const PopupMenuItem<String>(
+                                  value: 'profile',
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.person_outline_rounded),
+                                      SizedBox(width: 10),
+                                      Text('Profil & Pengaturan'),
+                                    ],
+                                  ),
+                                ),
                                 const PopupMenuItem<String>(
                                   value: 'signOut',
                                   child: Row(
