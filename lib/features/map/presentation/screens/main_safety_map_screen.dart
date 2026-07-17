@@ -288,6 +288,69 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     }
   }
 
+  // red blue route
+  List<Polyline> _buildColoredRoute(List<LatLng> routePoints, List<Report> hazards) {
+    if (routePoints.isEmpty) return [];
+
+    final distanceCalc = const Distance();
+    const double dangerRadius = 100.0; // 100 meter
+
+    List<Polyline> polylines = [];
+    List<LatLng> currentSegment = [routePoints.first];
+    
+    // titik awal
+    bool wasInDanger = hazards.any((hazard) => 
+      distanceCalc.as(
+        LengthUnit.Meter, 
+        routePoints.first, 
+        LatLng(hazard.location.latitude, hazard.location.longitude)
+      ) <= dangerRadius
+    );
+
+    for (int i = 1; i < routePoints.length; i++) {
+      final point = routePoints[i];
+      
+      // check each point
+      final isInDanger = hazards.any((hazard) => 
+        distanceCalc.as(
+          LengthUnit.Meter, 
+          point, 
+          LatLng(hazard.location.latitude, hazard.location.longitude)
+        ) <= dangerRadius
+      );
+
+      // same status
+      if (isInDanger == wasInDanger) {
+        currentSegment.add(point);
+      } else {
+        // change status
+        currentSegment.add(point);
+        polylines.add(
+          Polyline(
+            points: currentSegment,
+            strokeWidth: 5.0,
+            color: wasInDanger ? Colors.redAccent : Colors.blueAccent,
+          ),
+        );
+        currentSegment = [point];
+        wasInDanger = isInDanger;
+      }
+    }
+
+    // draw line sisa
+    if (currentSegment.length > 1) {
+      polylines.add(
+        Polyline(
+          points: currentSegment,
+          strokeWidth: 5.0,
+          color: wasInDanger ? Colors.redAccent : Colors.blueAccent,
+        ),
+      );
+    }
+
+    return polylines;
+  }
+
   @override
   Widget build(BuildContext context) {
     // pake provider buat gps
@@ -295,6 +358,11 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
     final draftLocation = ref.watch(draftLocationProvider);
     final reportsAsync = ref.watch(visibleReportsProvider);
     final visibleReports = reportsAsync.value ?? const <Report>[];
+
+    // dangerous route
+    final routePoints = ref.watch(routeProvider);
+    final hazards = visibleReports.where((r) => r.reportType != 'protective').toList();
+    final coloredRouteLines = _buildColoredRoute(routePoints, hazards);
 
     // Listener for showing the pop up after certain time countdown
     ref.listen<EmergencyStatus>(emergencyProvider, (previous, next) {
@@ -352,6 +420,13 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
                   }
                 }
               },
+              onLongPress: (_, location) {
+                // tutup keyboard kalau kebuka
+                FocusScope.of(context).unfocus();
+                
+                // update provider tujuan ke titik yang ditekan
+                ref.read(destinationProvider.notifier).updateLocation(location);
+              },
             ),
             children: [
               TileLayer(
@@ -361,15 +436,18 @@ class _MainSafetyMapScreenState extends ConsumerState<MainSafetyMapScreen>
 
               // layer buat gambar garis rute
               PolylineLayer(
-                polylines: [
-                  // cuman draw kalau ga kosong, soalnya error dia kalau ga gini
-                  if (ref.watch(routeProvider).isNotEmpty)
-                    Polyline(
-                      points: ref.watch(routeProvider),
-                      strokeWidth: 5.0,
-                      color: Colors.blueAccent,
-                    ),
-                ],
+                // polylines: [
+                //   // cuman draw kalau ga kosong, soalnya error dia kalau ga gini
+                //   if (ref.watch(routeProvider).isNotEmpty)
+                //     Polyline(
+                //       points: ref.watch(routeProvider),
+                //       strokeWidth: 5.0,
+                //       color: Colors.blueAccent,
+                //     ),
+                // ],
+
+                // tes draw line danger
+                polylines: coloredRouteLines,
               ),
 
               // lingkaran tiap marker
