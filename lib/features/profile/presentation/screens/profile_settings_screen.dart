@@ -8,17 +8,33 @@ import '../../application/profile_validation.dart';
 import '../../application/trusted_contact_policy.dart';
 import '../../data/models/profile_settings.dart';
 import '../../data/models/profile_trusted_contact.dart';
+import '../models/mock_contribution_data.dart';
+import '../widgets/profile_contribution_section.dart';
 import '../widgets/profile_components.dart';
 import '../widgets/trusted_contact_dialog.dart';
 
-class ProfileSettingsScreen extends ConsumerWidget {
+class ProfileSettingsScreen extends ConsumerStatefulWidget {
   const ProfileSettingsScreen({required this.uid, super.key});
 
   final String uid;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(profileSettingsProvider(uid));
+  ConsumerState<ProfileSettingsScreen> createState() =>
+      _ProfileSettingsScreenState();
+}
+
+class _ProfileSettingsScreenState extends ConsumerState<ProfileSettingsScreen> {
+  late final MockContributionData _contributionData;
+
+  @override
+  void initState() {
+    super.initState();
+    _contributionData = MockContributionData.random();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = ref.watch(profileSettingsProvider(widget.uid));
 
     return Scaffold(
       backgroundColor: const Color(0xFFEAF6FF),
@@ -34,18 +50,20 @@ class ProfileSettingsScreen extends ConsumerWidget {
             child: CircularProgressIndicator(color: AppColors.primary),
           ),
           error: (_, _) => _ProfileLoadError(
-            onRetry: () => ref.invalidate(profileSettingsProvider(uid)),
+            onRetry: () => ref.invalidate(profileSettingsProvider(widget.uid)),
           ),
           data: (data) {
             if (data == null) {
               return _ProfileLoadError(
                 message: 'Profil akun tidak ditemukan.',
-                onRetry: () => ref.invalidate(profileSettingsProvider(uid)),
+                onRetry: () =>
+                    ref.invalidate(profileSettingsProvider(widget.uid)),
               );
             }
             return _LoadedProfileSettings(
               profile: data,
-              contacts: ref.watch(profileTrustedContactsProvider(uid)),
+              contacts: ref.watch(profileTrustedContactsProvider(widget.uid)),
+              contributionData: _contributionData,
             );
           },
         ),
@@ -55,10 +73,15 @@ class ProfileSettingsScreen extends ConsumerWidget {
 }
 
 class _LoadedProfileSettings extends ConsumerStatefulWidget {
-  const _LoadedProfileSettings({required this.profile, required this.contacts});
+  const _LoadedProfileSettings({
+    required this.profile,
+    required this.contacts,
+    required this.contributionData,
+  });
 
   final ProfileSettings profile;
   final AsyncValue<List<ProfileTrustedContact>> contacts;
+  final MockContributionData contributionData;
 
   @override
   ConsumerState<_LoadedProfileSettings> createState() =>
@@ -101,6 +124,12 @@ class _LoadedProfileSettingsState
   bool get _hasProfileChanges {
     return _displayNameController.text.trim() != widget.profile.displayName ||
         _phoneController.text.trim() != widget.profile.phoneNumber;
+  }
+
+  void _showContributionComingSoon(String action) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text('$action segera hadir.')));
   }
 
   Future<void> _saveProfile() async {
@@ -298,6 +327,16 @@ class _LoadedProfileSettingsState
                     ],
                   ),
                 ),
+              ),
+              const SizedBox(height: 18),
+              ProfileContributionSection(
+                data: widget.contributionData,
+                onCreateReport: () =>
+                    _showContributionComingSoon('Buat laporan'),
+                onOpenMyReports: () =>
+                    _showContributionComingSoon('Laporan saya'),
+                onConfirmReport: () =>
+                    _showContributionComingSoon('Konfirmasi laporan'),
               ),
               const SizedBox(height: 18),
               ProfileSectionCard(
